@@ -1,0 +1,10 @@
+# 검사 출력(스크린숏·기록)
+test/out/
+# 예전 빌드 위치
+dist/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+desktop.ini
+node_modules/

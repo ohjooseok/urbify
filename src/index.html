@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Urbify</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231F6F5F'/%3E%3Cpath d='M5.4 5.4h7.2l2.2 9.2H5.4z' fill='%234EB09B'/%3E%3Cpath d='M5.4 18.2h9.8l2 8.4H5.4z' fill='%23FAE0C7'/%3E%3Cpath d='M15.5 5.4h11.1v5.2H16.7z' fill='%239AD3C5'/%3E%3Cpath d='M17.1 13.2h9.5v6.4h-8z' fill='%23F28076'/%3E%3Cpath d='M19.1 22.2h7.5v4.4h-6.4z' fill='%234EB09B'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<!--CSS-->
+<link rel="stylesheet" href="css/app.css">
+<!--/CSS-->
+</head>
+<body>
+<div id="app" data-view="split" data-mview="2d" data-sheet="closed" data-mode="color">
+  <header class="top">
+    <div class="brand"><b>Urbify</b></div>
+    <nav class="mbar tmb hide-m" aria-label="메뉴"><button class="mb" data-act="menu" data-arg="project" aria-haspopup="menu" aria-expanded="false">프로젝트</button><button class="mb" data-act="menu" data-arg="edit" aria-haspopup="menu" aria-expanded="false">편집</button><button class="mb" data-act="menu" data-arg="view" aria-haspopup="menu" aria-expanded="false">보기</button><button class="mb" data-act="menu" data-arg="help" aria-haspopup="menu" aria-expanded="false">도움말</button></nav>
+    <span class="grow"></span>
+    <button class="ibtn ub" id="btnUndo" data-act="undo" data-ico="undo" title="되돌리기 (Ctrl+Z)" aria-label="되돌리기"></button>
+    <button class="ibtn rb" id="btnRedo" data-act="redo" data-ico="redo" title="다시 하기 (Ctrl+Shift+Z)" aria-label="다시 하기"></button>
+    <span class="cap">화면</span>
+    <div class="seg viewsw" role="group" aria-label="화면 배치">
+      <button data-view-btn="split" aria-pressed="true">나란히</button>
+      <button data-view-btn="2d" aria-pressed="false">평면</button>
+      <button data-view-btn="3d" aria-pressed="false">3D</button>
+    </div>
+    <span class="cap">표현</span>
+    <div class="seg mode" role="group" aria-label="표현 방식">
+      <button data-mode="color" aria-pressed="true" title="채색" aria-label="채색"><span data-picto="shade" data-size="26"></span></button>
+      <button data-mode="line" aria-pressed="false" title="선 도면" aria-label="선 도면"><span data-picto="wire" data-size="26"></span></button>
+    </div>
+    <button class="btn tbtn hide-m lyrb" id="btnLayers" data-act="layers" data-ico="layers"><span>레이어</span></button>
+    <button class="ibtn only-m" data-act="more" data-ico="more" aria-label="레이어·프로젝트·사용법"></button>
+  </header>
+  <nav class="mtabs" aria-label="화면">
+    <div class="seg" role="tablist">
+      <button data-mview-btn="2d" role="tab" aria-selected="true">Top</button>
+      <button data-mview-btn="3d" role="tab" aria-selected="false">3D</button>
+      <button data-mview-btn="sec" role="tab" aria-selected="false">Section</button>
+    </div>
+  </nav>
+  <aside class="palette" id="palette" aria-label="도구와 요소 메뉴"></aside>
+  <main class="stage" id="stage">
+    <section class="views">
+      <button class="edgeh l" data-act="panel" data-arg="L" aria-label="왼쪽 메뉴 접기" title="왼쪽 메뉴 접기"></button>
+      <button class="edgeh r" data-act="panel" data-arg="R" aria-label="오른쪽 패널 접기" title="오른쪽 패널 접기"></button>
+      <div class="view" id="v2d">
+        <canvas id="cv2d" aria-label="평면도"></canvas>
+        <div class="vhead"><span class="vl"><button class="vt" data-act="max" data-arg="2d" data-lb="Top" aria-pressed="false" title="이 화면만 크게 보기"><span>Top</span></button><span class="vmodes" data-vk="2d"></span></span><span class="vb"><button class="ibtn" data-act="labels" data-ico="label" aria-pressed="true" title="글자 끄기(도로·용도 이름)" aria-label="글자(도로·용도 이름)"></button><button class="ibtn" data-act="shadow" data-ico="shadow" aria-pressed="false" title="그림자 켜기" aria-label="그림자"></button><button class="ibtn" data-act="fit2d" data-ico="fit" title="대상지 전체 보기" aria-label="대상지 전체 보기"></button></span></div>
+        <div class="hint" id="hint" hidden></div>
+        <div class="bldbar" id="bldbar2" role="toolbar" aria-label="고른 건물" hidden></div>
+        <div class="scl" id="scl2"><label class="sd" data-tip="화면 축척(모니터 96dpi 기준). 숫자를 넣고 Enter를 누르면 그 축척으로 맞춥니다">1:<input id="sclIn" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-label="화면 축척 1:N의 N"></label><span class="sb" id="sclBar" aria-hidden="true"><i></i></span><span class="sm" id="sclM"></span></div>
+      </div>
+      <div class="view" id="v3d">
+        <canvas id="cv3d" aria-label="3D 장면"></canvas>
+        <div class="bldbar" id="bldbar3" role="toolbar" aria-label="고른 건물" hidden></div>
+        <button class="compass" id="compass3" type="button" data-act="north3d" title="방위 — 누르면 북쪽이 위로 오게 돌림" aria-label="방위. 누르면 북쪽이 위로 오게 돌림"><i class="cn" aria-hidden="true"></i><b data-c="0">N</b><b data-c="1">E</b><b data-c="2">S</b><b data-c="3">W</b></button>
+        <div class="vhead"><span class="vl"><button class="vt" data-act="max" data-arg="3d" data-lb="3D" aria-pressed="false" title="이 화면만 크게 보기"><span>3D</span></button><span class="vmodes" data-vk="3d"></span></span><span class="vb"><span class="seg cam" role="group" aria-label="시점"><button data-act="cam" data-arg="aerial">조감</button><button data-act="cam" data-arg="persp">투시</button><button data-act="cam" data-arg="eye">눈높이</button><button data-act="cam" data-arg="top">위에서</button></span><button class="ibtn" data-act="traffic" data-ico="traffic" aria-pressed="false" title="사람·차량 보이기" aria-label="사람·차량"></button><button class="ibtn" data-act="shadow" data-ico="shadow" aria-pressed="false" title="그림자 켜기" aria-label="그림자"></button><button class="ibtn" data-act="sun" data-ico="sun" title="음영분석(시각·그림자·조명·조도)" aria-label="음영분석"></button><button class="ibtn" data-act="airender" data-ico="spark" title="AI 렌더(Gemini 이미지): 이 시점의 매스를 그대로 두고 사실적인 그림으로" aria-label="AI 렌더"></button></span></div>
+        <div class="trafbar" id="trafbar" hidden>
+          <label><span>사람</span><input type="range" id="trafPed" min="0" max="1" step="0.05" value="0.4" aria-label="사람 밀도"><output id="trafPedN">0명</output></label>
+          <label><span>차량</span><input type="range" id="trafCar" min="0" max="1" step="0.05" value="0.4" aria-label="차량 밀도"><output id="trafCarN">0대</output></label>
+          <label><span>개인형 이동장치</span><input type="range" id="trafPm" min="0" max="1" step="0.05" value="0.4" aria-label="개인형 이동장치 밀도"><output id="trafPmN">0대</output></label>
+        </div>
+        <p class="no3d" id="no3d" hidden>이 브라우저는 3D 표시(WebGL2)를 지원하지 않습니다. 평면과 단면은 그대로 쓸 수 있습니다.</p>
+      </div>
+    </section>
+    <div class="splitter" id="splitter" role="separator" aria-orientation="horizontal" aria-label="단면 높이 조절"></div>
+    <section class="secpanel" id="secpanel">
+      <div class="sechead" id="sechead"></div>
+      <div class="secwrap" id="secwrap"><canvas id="cvsec" tabindex="0" aria-label="가로 단면 편집기"></canvas></div>
+    </section>
+  </main>
+  <aside class="side" id="side" aria-label="속성과 지표">
+    <div class="grab" id="grab" aria-hidden="true"></div>
+    <div class="tabs" id="tabs">
+      <div class="seg" role="tablist">
+        <button data-act="tab" data-arg="props" data-tab="props" role="tab" aria-selected="true">속성<i id="selname"></i></button>
+        <button data-act="tab" data-arg="metrics" data-tab="metrics" role="tab" aria-selected="false">지표</button>
+        <button data-act="tab" data-arg="checks" data-tab="checks" role="tab" aria-selected="false">법규검토<em id="ckn" hidden>0</em></button>
+      </div>
+      <button class="ibtn sm sheetx only-m" data-act="sheetclose" data-ico="down" title="패널 닫기" aria-label="패널 닫기"></button>
+    </div>
+    <div class="pane" id="pane"></div>
+  </aside>
+</div>
+<div id="selpop" class="selpop" role="group" aria-label="획지 합치기" hidden></div>
+<div id="pop" class="pop" hidden></div>
+<div id="dialog" class="scrim" hidden></div>
+<div id="toast" class="toast" role="status" hidden></div>
+<!--JS-->
+<script src="js/util.js"></script>
+<script src="js/catalog.js"></script>
+<script src="js/model.js"></script>
+<script src="js/derive.js"></script>
+<script src="js/mapimport.js"></script>
+<script src="js/ctx.js"></script>
+<script src="js/render2d.js"></script>
+<script src="js/render3d.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/svgctx.js"></script>
+<script src="js/figures.js"></script>
+<script src="js/section.js"></script>
+<script src="js/traffic.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/export3d.js"></script>
+<script src="js/app.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/importui.js"></script>
+<script src="js/realui.js"></script>
+<script src="js/airender.js"></script>
+<script src="js/matdlg.js"></script>
+<!--/JS-->
+</body>
+</html>

@@ -1,0 +1,110 @@
+"""v10: 메뉴 막대, 패널 접기, 건물 길이, 가구 채우기, 빈 가구 모두 채우기"""
+import asyncio, sys, json
+import os, sys, pathlib
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import URL, LAUNCH, OUTD, TESTD
+from playwright.async_api import async_playwright
+ARGS=["--use-angle=swiftshader","--enable-unsafe-swiftshader","--ignore-gpu-blocklist","--allow-file-access-from-files"]
+async def main():
+    async with async_playwright() as p:
+        b = await p.chromium.launch(**LAUNCH(ARGS))
+        ctx = await b.new_context(viewport={"width":1440,"height":900})
+        pg = await ctx.new_page()
+        logs=[]
+        pg.on("console", lambda m: logs.append(m.type+": "+m.text) if m.type in ("error","warning") and "GPU stall" not in m.text and "fonts.g" not in m.text and "ERR_FAILED" not in m.text else None)
+        pg.on("pageerror", lambda e: logs.append("PAGEERROR: "+str(e)))
+        await pg.route("**/fonts.googleapis.com/**", lambda r: r.abort())
+        await pg.route("**/fonts.gstatic.com/**", lambda r: r.abort())
+        await pg.goto(URL)
+        await pg.wait_for_timeout(1200)
+        ev = pg.evaluate
+        toast = "(document.querySelector('#toast')||{}).textContent"
+        mb = lambda k: pg.locator(f'#palette .mbar [data-arg="{k}"]')
+        # 1) 메뉴: 보기 > 평면만, 3D만, 나란히
+        await mb("view").click(); await pg.wait_for_timeout(250)
+        print("view menu open:", await ev("!document.querySelector('#pop').hidden"), "| expanded:", await ev("document.querySelector('#palette .mbar [data-arg=\"view\"]').getAttribute('aria-expanded')"))
+        # 옆 메뉴 위로 가면 바뀜
+        await mb("edit").hover(); await pg.wait_for_timeout(250)
+        print("hover → edit menu:", await ev("document.querySelector('#pop .mlist').getAttribute('aria-label')"))
+        await mb("view").hover(); await pg.wait_for_timeout(250)
+        await pg.locator('#pop [data-act="viewsw"][data-arg="2d"]').click(); await pg.wait_for_timeout(500)
+        print("view after menu:", await ev("UDS.app.state.view"), "| menu closed:", await ev("document.querySelector('#pop').hidden"), "| footer pressed:", await ev("document.querySelector('#palette .pview [data-view-btn=\"2d\"]').getAttribute('aria-pressed')"))
+        await pg.locator('#palette .pview [data-view-btn="split"]').click(); await pg.wait_for_timeout(500)
+        print("footer split →", await ev("UDS.app.state.view"))
+        # 표현: 선 도면(메뉴) → 채색(아래 단추)
+        await mb("view").click(); await pg.wait_for_timeout(200)
+        await pg.locator('#pop [data-act="setmode"][data-arg="line"]').click(); await pg.wait_for_timeout(500)
+        m1 = await ev("UDS.app.state.mode")
+        await pg.locator('#palette .pview [data-mode="color"]').click(); await pg.wait_for_timeout(500)
+        print("mode menu → line:", m1, "| footer → color:", await ev("UDS.app.state.mode"))
+        # 레이어(메뉴에서 열면 메뉴 이름 아래에 뜸)
+        await mb("view").click(); await pg.wait_for_timeout(200)
+        await pg.locator('#pop [data-act="layers"]').click(); await pg.wait_for_timeout(300)
+        print("layers from menu:", await ev("(()=>{const p=document.querySelector('#pop'); const r=p.getBoundingClientRect(); return [p.hidden, p.querySelectorAll('[data-layer]').length, Math.round(r.left), Math.round(r.top)];})()"))
+        await pg.keyboard.press("Escape"); await pg.wait_for_timeout(200)
+        # 편집: 도구, 되돌리기
+        await mb("edit").click(); await pg.wait_for_timeout(200)
+        await pg.locator('#pop [data-act="settool"][data-arg="move"]').click(); await pg.wait_for_timeout(300)
+        print("tool via menu:", await ev("UDS.app.state.tool"))
+        await ev("UDS.app.setTool('select')")
+        # 2) 패널 접기
+        w0 = await ev("UDS.app.r2.W")
+        await pg.locator('.edgeh.l').click(); await pg.wait_for_timeout(700)
+        w1 = await ev("UDS.app.r2.W")
+        await pg.locator('.edgeh.r').click(); await pg.wait_for_timeout(700)
+        w2 = await ev("UDS.app.r2.W")
+        print("panels: plan width", w0, "→ hide L", w1, "→ hide R", w2, "| palette shown:", await ev("getComputedStyle(document.querySelector('#palette')).display"), "| side:", await ev("getComputedStyle(document.querySelector('#side')).display"))
+        await pg.screenshot(path=OUTD + "/v10_panels.png")
+        await pg.locator('.edgeh.l').click(); await pg.wait_for_timeout(300)
+        await pg.locator('.edgeh.r').click(); await pg.wait_for_timeout(700)
+        print("panels back:", await ev("UDS.app.r2.W"), await ev("[UDS.app.state.hideL, UDS.app.state.hideR]"))
+        # 3) 건물 길이: 왼쪽 메뉴 입력 → 획지에 놓기
+        await pg.locator('#palette .pgrp[data-grp="bld"] .pgh').click(); await pg.wait_for_timeout(300)
+        await pg.locator('#palette [data-pal="build:com"]').click(); await pg.wait_for_timeout(300)
+        await pg.fill('#palette [data-bopt="floors"]', '8'); await pg.locator('#palette [data-bopt="floors"]').dispatch_event('change')
+        await pg.fill('#palette [data-bopt="len"]', '12'); await pg.locator('#palette [data-bopt="len"]').dispatch_event('change')
+        await pg.fill('#palette [data-bopt="depth"]', '10'); await pg.locator('#palette [data-bopt="depth"]').dispatch_event('change')
+        print("buildOpt:", await ev("UDS.app.state.buildOpt"))
+        r = await ev("(()=>{const a=UDS.app; const l=a.D.lots.find(x=>x.id==='b_st0:0:0'); const c=l.poly.reduce((s,q)=>[s[0]+q[0]/l.poly.length,s[1]+q[1]/l.poly.length],[0,0]); a.buildAt(c,{type:'lot',id:l.id}); const b=a.D.lots.find(x=>x.id==='b_st0:0:0').building; return {use:b.use, floors:b.floors, area:Math.round(b.area), ov:a.block('b_st0').lots['0:0']};})()")
+        print("placed with options:", r)
+        # 길이·깊이 맞바꾸기
+        await pg.locator('#palette [data-act="bswap"]').click(); await pg.wait_for_timeout(200)
+        print("after swap:", await ev("UDS.app.state.buildOpt"), await ev("[document.querySelector('#palette [data-bopt=\"len\"]').value, document.querySelector('#palette [data-bopt=\"depth\"]').value]"))
+        # 4) 가구 전체 채우기(도구)
+        await pg.locator('#palette [data-act="bscope"][data-arg="block"]').click(); await pg.wait_for_timeout(300)
+        print("scope block → inputs:", await ev("Array.from(document.querySelectorAll('#palette [data-bopt]')).map(x=>x.dataset.bopt+'='+x.value)"), "| hint:", await ev("document.querySelector('#hint').textContent.slice(0,60)"))
+        await pg.fill('#palette [data-bopt="far"]', '300'); await pg.locator('#palette [data-bopt="far"]').dispatch_event('change')
+        r = await ev("(()=>{const a=UDS.app; const l=a.D.lots.find(x=>x.blockId==='b_st4'); const c=l.poly.reduce((s,q)=>[s[0]+q[0]/l.poly.length,s[1]+q[1]/l.poly.length],[0,0]); a.buildAt(c,{type:'lot',id:l.id}); const bl=a.D.buildings.filter(x=>x.blockId==='b_st4'); const net=a.D.lots.filter(x=>x.blockId==='b_st4'&&x.building).reduce((s,x)=>s+x.area,0); const fp=bl.reduce((s,x)=>s+x.area,0), gfa=bl.reduce((s,x)=>s+x.gfa,0); return {sel:a.state.sel, n:bl.length, uses:[...new Set(bl.map(x=>x.use))], floors:bl.map(x=>x.floors), bcr:(fp/net*100).toFixed(1), far:(gfa/net*100).toFixed(1), fill:a.block('b_st4').fill};})()")
+        print("fill block com (bcr80 far300 fmax20):", r); print(" toast:", await ev(toast))
+        await pg.wait_for_timeout(600)
+        print(" pane fill section:", await ev("Array.from(document.querySelectorAll('#pane .h')).map(x=>x.textContent).filter(t=>/채우기|가구 설정/.test(t))"))
+        await pg.screenshot(path=OUTD + "/v10_fillblock.png")
+        # 가구 패널에서 다시 채우기: 주거 · 기본값
+        await pg.locator('#pane select').first.select_option('res'); await pg.wait_for_timeout(400)
+        print(" pane fill use → res: targets", await ev("UDS.app.fillTargets('res')"))
+        await pg.locator('#pane [data-act="fillblock"]').click(); await pg.wait_for_timeout(700)
+        r = await ev("(()=>{const a=UDS.app; const bl=a.D.buildings.filter(x=>x.blockId==='b_st4'); const net=a.D.lots.filter(x=>x.blockId==='b_st4'&&x.building).reduce((s,x)=>s+x.area,0); const fp=bl.reduce((s,x)=>s+x.area,0), gfa=bl.reduce((s,x)=>s+x.gfa,0); return {n:bl.length, uses:[...new Set(bl.map(x=>x.use))], floors:bl.map(x=>x.floors), bcr:(fp/net*100).toFixed(1), far:(gfa/net*100).toFixed(1)};})()")
+        print(" refill res (60/200/7):", r)
+        # 공원으로 둔 획지는 그대로
+        r = await ev("(()=>{const a=UDS.app; const S=a.block('b_st4'); S.lots['0:0']={use:'park'}; a.commit(); a.fillBlock('b_st4','mixed'); a.commit(); return a.D.lots.filter(x=>x.blockId==='b_st4').map(x=>x.key+':'+x.use+(x.building?'('+x.building.floors+'F)':''));})()")
+        print(" keep park + fill mixed:", r)
+        # 5) 빈 대상지에서 빈 가구 모두 채우기
+        await ev("(()=>{const a=UDS.app, M=UDS.Model; a.setScene('blank',{w:420,h:300}); a.P.roads.push(M.makeRoad('jung3',[[0,150],[420,150]],{name:'가'})); a.P.roads.push(M.makeRoad('so1',[[140,0],[140,300]],{name:'나'})); a.P.roads.push(M.makeRoad('so1',[[280,0],[280,300]],{name:'다'})); a.commit();})()"); await pg.wait_for_timeout(800)
+        print("blank + roads: vacant blocks", await ev("UDS.app.vacantBlocks().length"), "| button:", await ev("document.querySelector('#palette [data-act=\"fillvacant\"]').textContent"))
+        await mb("edit").click(); await pg.wait_for_timeout(200)
+        print(" edit menu fill item:", await ev("document.querySelector('#pop [data-act=\"fillvacantdlg\"]').textContent"), await ev("document.querySelector('#pop [data-act=\"fillvacantdlg\"]').disabled"))
+        await pg.locator('#pop [data-act="fillvacantdlg"]').click(); await pg.wait_for_timeout(300)
+        print(" dialog:", await ev("document.querySelector('#dialog .dh2 b').textContent"), "|", await ev("document.querySelector('#fvT').textContent"))
+        await pg.locator('#fvUse').select_option('res')
+        await pg.locator('#dialog [data-act="fillvacantgo"]').click(); await pg.wait_for_timeout(900)
+        print(" after fill all:", await ev("(()=>{const a=UDS.app; return {blds:a.D.buildings.length, vacant:a.vacantBlocks().length, uses:[...new Set(a.D.blocks.map(b=>b.settings.use))], far:(a.D.metrics.far*100).toFixed(0)};})()"), "|", await ev(toast))
+        await pg.screenshot(path=OUTD + "/v10_fillall.png")
+        await pg.keyboard.press("Control+z"); await pg.wait_for_timeout(700)
+        print(" undo:", await ev("[UDS.app.D.buildings.length, UDS.app.vacantBlocks().length]"))
+        # 6) F1 사용법
+        await pg.keyboard.press("F1"); await pg.wait_for_timeout(300)
+        print("F1 → dialog:", await ev("(document.querySelector('#dialog .dh2 b')||{}).textContent"))
+        await pg.keyboard.press("Escape")
+        print("\n".join(logs[:20]) or "no errors")
+        await b.close()
+asyncio.run(main())
