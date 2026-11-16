@@ -962,3 +962,8 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
 .bldbar .ibtn.sm{width:30px;height:30px;border-radius:7px}
 .bldbar .ibtn[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-ink)}
 .bldbar .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
+.spsb{max-width:560px;font-size:13.5px;line-height:1.65}
+.spsb p{margin:0 0 10px}
+.spsb .spsbu{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;background:var(--fill);font-variant-numeric:tabular-nums;user-select:all}
+.spsb ul{margin:4px 0 0;padding-left:18px;color:var(--mute)}
+.spsb li{margin:2px 0}

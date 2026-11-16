@@ -105,14 +105,28 @@
     return bundleCache.get(s.file);
   }
 
+  /* Claude 화면(아티팩트) 안에서: 보안 정책으로 바깥 서버에 요청할 수 없어 지도를 띄울 수 없다.
+     웹 주소로 열어 지도에서 고르게 하고(같은 자리에서 이어 쓰려면 작업 파일로 옮김), 브이월드 붙여 넣기도 남겨 둔다 */
+  const WEB_URL = 'https://ohjooseok.github.io/urbify/';
+  function sandboxDialog() {
+    const body = `<div class="spsb">
+      <p>Claude 화면(아티팩트) 안에서는 보안 정책으로 바깥 지도·자료 서버에 접속할 수 없어 <b>지도에서 고르기를 쓸 수 없습니다</b>. 같은 앱을 웹 주소로 열면 지도에서 장소를 찾고 범위를 맞춰 바로 넣을 수 있습니다.</p>
+      <p class="spsbu"><span>${WEB_URL}</span></p>
+      <ul>
+        <li>웹에서 만든 계획을 여기서 이어 쓰려면 웹에서 [프로젝트 → 작업 파일 저장] 후 여기서 [작업 파일 열기]</li>
+        <li>브이월드 인증키가 있으면 여기서도 [브이월드 자료 붙여 넣기]로 넣을 수 있음</li>
+      </ul></div>`;
+    ui.dialog('지도에서 삽입', body,
+      `<a class="btn pri" href="${WEB_URL}" target="_blank" rel="noopener" id="spWeb">${icon('map', 14)}웹에서 지도로 고르기</a>` +
+      `<button class="btn" id="spPaste">브이월드 자료 붙여 넣기</button><button class="btn" data-act="closedlg">취소</button>`);
+    const pb = document.getElementById('spPaste');
+    if (pb) pb.addEventListener('click', () => { ui.closeDialog(); if (ui.realDialog) ui.realDialog(); });
+  }
+
   /* ---------- 대화상자 ---------- */
   ui.siteDialog = function () {
     ui.closePop();
-    if (X.inSandbox()) { // Claude 화면 안에서는 바깥 지도·자료에 닿을 수 없다: 붙여 넣는 방식으로
-      if (ui.realDialog) ui.realDialog();
-      ui.toast('이 화면에서는 지도를 쓸 수 없어 자료 붙여 넣기 방식으로 엽니다. 지도에서 고르기는 ohjooseok.github.io/urbify 에서 씁니다.');
-      return;
-    }
+    if (X.inSandbox()) { sandboxDialog(); return; } // Claude 화면(아티팩트) 안: 바깥 지도·자료 서버에 닿을 수 없다
     const edited = app.isEdited();
     const typeOpts = Object.keys(MI.TYPES).map((k) => `<option value="${k}"${k === st.type ? ' selected' : ''}>${MI.TYPES[k].name}</option>`).join('');
     const src = (k, b, i) => `<label class="spsrc"${k === 'class' ? ' id="spClassL" hidden' : ''}><input type="radio" name="spSrc" value="${k}"${st.src === k ? ' checked' : ''}><span><b>${b}</b><i${k === 'class' ? ' id="spClassI"' : ''}>${i}</i></span></label>`;

@@ -85,7 +85,7 @@
         </section>
       </div>
     </div>`;
-    const d = ui.dialog('실제 지역 불러오기', body, '<button class="btn pri" id="rlGo" disabled>대상지 만들기</button><button class="btn" data-act="closedlg">취소</button><span class="mut" style="font-size:11.5px">받은 자료는 이 브라우저 안에서만 씁니다.</span>');
+    const d = ui.dialog('지도에서 삽입 · 브이월드 자료 붙여 넣기', body, '<button class="btn pri" id="rlGo" disabled>대상지 만들기</button><button class="btn" data-act="closedlg">취소</button><span class="mut" style="font-size:11.5px">받은 자료는 이 브라우저 안에서만 씁니다.</span>');
     $('.dlg', d).classList.add('big', 'real');
     bind(d);
     sync();

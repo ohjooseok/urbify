@@ -973,6 +973,11 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
 .bldbar .ibtn.sm{width:30px;height:30px;border-radius:7px}
 .bldbar .ibtn[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-ink)}
 .bldbar .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
+.spsb{max-width:560px;font-size:13.5px;line-height:1.65}
+.spsb p{margin:0 0 10px}
+.spsb .spsbu{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;background:var(--fill);font-variant-numeric:tabular-nums;user-select:all}
+.spsb ul{margin:4px 0 0;padding-left:18px;color:var(--mute)}
+.spsb li{margin:2px 0}
 </style>
 <script>/* 테마를 그리기 전에 정해 깜박임을 막는다(기본 다크) */try{var t=localStorage.getItem('uds.theme'),d=t==='light'?false:t==='system'?matchMedia('(prefers-color-scheme: dark)').matches:true;document.documentElement.dataset.theme=d?'dark':'light'}catch(e){document.documentElement.dataset.theme='dark'}</script>
 </head>
@@ -6877,6 +6882,86 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
       nDual++;
     });
     if (nDual) chainAll();
+    /* (3-b) 이음새 고치기: 같은 길이 교차로에서 어긋나 끊겨 보이는 것을 바로잡는다
+       (가) 가까운 교차점 모으기: 6.5m 안의 두 교차점이 짧은 길로 바로 이어졌거나 같은 이웃 교차점을 두면(어긋난 십자로, 갈라졌다 다시 만나는 짧은 두 갈래) 한 점으로.
+            그 결과 겹치는 길(같은 두 점을 잇고 서로 가까움)은 하나만, 제자리로 도는 짧은 길은 버린다
+       (나) 다른 길 바로 앞에서 끊긴 끝(가운데 선으로 합친 양방향 차도의 끝 등): 앞쪽 5m 안의 교차점이나 4m 안의 길에 잇는다(길은 그 자리에서 나눔) */
+    const rabSet = new Set(rabNodes.map((x) => x.C));
+    const CJ = 6.5;
+    const dist2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const res0 = (n) => { while (n.alias) n = n.alias; return n; };
+    const live = () => { const st = new Set(); edges.forEach((e) => { st.add(e.a); st.add(e.b); }); return [...st]; };
+    const nbrs = (n) => new Set(n.e.map((e) => (e.a === n ? e.b : e.a)));
+    const midOf = (pts) => { const L = lenOf(pts); let acc = 0; for (let i = 1; i < pts.length; i++) { const l = dist2(pts[i - 1], pts[i]); if (acc + l >= L / 2) { const t = (L / 2 - acc) / (l || 1); return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t]; } acc += l; } return pts[0]; };
+    const kill2 = (e) => { drop(e); edges = edges.filter((x) => x !== e); };
+    const dedupe = () => {
+      const seen = new Map();
+      edges.slice().forEach((e) => {
+        if (e.a === e.b) { if (lenOf(e.pts) < 40) kill2(e); return; }
+        const k = e.a.id < e.b.id ? e.a.id + '_' + e.b.id : e.b.id + '_' + e.a.id;
+        const o = seen.get(k);
+        if (!o) { seen.set(k, e); return; }
+        const nb = near(midOf(e.pts), o.pts);
+        if (!nb || nb.d > 6) return; // 서로 떨어진 두 길(작은 가구를 사이에 둔 길)은 둘 다 둔다
+        const keep = rank(o) >= rank(e) ? o : e;
+        kill2(keep === o ? e : o); seen.set(k, keep);
+      });
+    };
+    try { // 고치기가 어떤 자료에서 실패해도 받기는 이어 간다(고치기 전 그대로)
+    {
+      const L = live().filter((n) => !rabSet.has(n)), S = 8, G2 = new Map();
+      L.forEach((n) => { const k = Math.floor(n.p[0] / S) + ',' + Math.floor(n.p[1] / S); if (!G2.has(k)) G2.set(k, []); G2.get(k).push(n); });
+      const cand = [];
+      L.forEach((n) => {
+        const cx = Math.floor(n.p[0] / S), cy = Math.floor(n.p[1] / S);
+        for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) (G2.get(cx + i + ',' + (cy + j)) || []).forEach((m) => { if (m.id > n.id) { const d = dist2(n.p, m.p); if (d < CJ) cand.push({ n, m, d }); } });
+      });
+      cand.sort((x, y) => x.d - y.d);
+      let nj = 0;
+      cand.forEach(({ n, m }) => {
+        const a = res0(n), b = res0(m);
+        if (a === b || rabSet.has(a) || rabSet.has(b) || dist2(a.p, b.p) >= CJ) return;
+        const da = a.e.length, db = b.e.length;
+        if (da < 2 || db < 2 || Math.max(da, db) < 3) return;
+        const direct = a.e.some((e) => (e.a === b || e.b === b) && lenOf(e.pts) < CJ + 2);
+        const na = nbrs(a), common = [...nbrs(b)].some((w) => w !== a && w !== b && na.has(w));
+        if (!direct && !common) return;
+        mergeNodes(a, b); nj++;
+        dedupe();
+      });
+      if (nj) dedupe();
+    }
+    {
+      const pinAt = (e, q) => { // 길 e 위의 q 자리(끝 가까우면 그 끝). 그 길은 나누지 않는다(앱은 다른 길 위에 닿은 끝을 T자 교차로로 본다)
+        if (dist2(q, e.a.p) < 2) return e.a;
+        if (dist2(q, e.b.p) < 2) return e.b;
+        let bi = 0, bd = Infinity;
+        for (let i = 0; i + 1 < e.pts.length; i++) { const r = U.distPointSeg(q, e.pts[i], e.pts[i + 1]); if (r.d < bd) { bd = r.d; bi = i; } }
+        const w = { id: nodes.length, p: [q[0], q[1]], e: [] }; nodes.push(w);
+        e.pts.splice(bi + 1, 0, w.p);
+        return w;
+      };
+      const absorb = (v, u) => { u.e.slice().forEach((e) => relink(e, u, v)); u.alias = v; };
+      let ns = 0;
+      live().filter((n) => n.e.length === 1 && !rabSet.has(n)).forEach((u0) => {
+        const u = res0(u0);
+        if (u.e.length !== 1) return;
+        const eu = u.e[0], other = eu.a === u ? eu.b : eu.a, din = dirAt(eu, u), out = [-din[0], -din[1]];
+        const ahead = (q, d) => d <= 1.5 || ((q[0] - u.p[0]) * out[0] + (q[1] - u.p[1]) * out[1]) / d >= 0.26; // 끝에서 길이 뻗던 쪽(±75°)
+        let best = null;
+        live().forEach((v) => { if (v === u || v === other || rabSet.has(v)) return; const d = dist2(u.p, v.p); if (d <= 5 && ahead(v.p, d) && (!best || d < best.d)) best = { d, v }; });
+        edges.forEach((e) => {
+          if (e === eu) return;
+          const nb = near(u.p, e.pts); if (!nb || nb.d > 4 || (best && best.d <= nb.d) || !ahead(nb.q, nb.d)) return;
+          best = { d: nb.d, e, q: nb.q };
+        });
+        if (!best) return;
+        absorb(best.v || pinAt(best.e, best.q), u); ns++;
+      });
+      if (ns) dedupe();
+    }
+    } catch (err) { if (typeof console !== 'undefined') console.warn('도로 이음새 고치기 건너뜀', err); }
+    chainAll();
     /* (4) 점 줄이기(더글러스-포이커), 대상지 경계로 자르기 */
     let res = [];
     edges.forEach((e) => {
@@ -6895,7 +6980,7 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
     for (let pass = 0; pass < 3; pass++) {
       const cnt = new Map();
       res.forEach((s) => [s.pts[0], s.pts[s.pts.length - 1]].forEach((p) => cnt.set(key(p), (cnt.get(key(p)) || 0) + 1)));
-      const touches = (p, self) => res.some((o) => o !== self && o.pts.some((q, i) => i > 0 && i < o.pts.length - 1 && Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.8));
+      const touches = (p, self) => res.some((o) => { if (o === self) return false; for (let i = 0; i + 1 < o.pts.length; i++) if (U.distPointSeg(p, o.pts[i], o.pts[i + 1]).d < 0.8) return true; return false; }); // 다른 길 위(T자)
       const linked = (p, s) => onEdge(p) || nearRab(p) || cnt.get(key(p)) > 1 || touches(p, s);
       const n0 = res.length;
       res = res.filter((s) => s.len >= 25 || (linked(s.pts[0], s) && linked(s.pts[s.pts.length - 1], s)) || (s.len >= 10 && (linked(s.pts[0], s) || linked(s.pts[s.pts.length - 1], s))));
@@ -7269,6 +7354,11 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         // 꼭짓점 손잡이는 끌어 옮길 수 있을 때(이동 도구)만 보인다. 단지 안 길(곡선·둥근 모서리)은 찍은 점과 그 점을 잇는 가는 선
         if (target === sel && info.road.ctrl && info.road.shape !== 'line') pen.line(info.road.ctrl, { stroke: color, lw: 1, dash: [2, 3], salpha: 0.8 });
         if (target === sel && st.tool === 'move') UDS.Model.verts(info.road).forEach((p, i) => pen.circle(p, 5.5, { rpx: true, fill: '#fff', stroke: color, lw: 2 }));
+        // 선택 도구: 두 끝만(끌어 다른 도로에 이을 수 있음). 끊긴 끝(막다른 끝)은 속을 칠해 눈에 띄게
+        else if (target === sel && st.tool === 'select') {
+          const V = UDS.Model.verts(info.road);
+          [V[0], V[V.length - 1]].forEach((p) => { const dead = D.deadEnds.some((d) => d.roadId === info.road.id && U.dist(d.p, p) < 0.5); pen.circle(p, 6, { rpx: true, fill: dead ? color : '#fff', stroke: color, lw: 2 }); });
+        }
       } else if (target.type === 'lot' || target.type === 'building') {
         const lot = D.lots.find((l) => l.id === target.id);
         if (!lot) return;
@@ -14839,6 +14929,46 @@ void main(){
     this.invalidate(1);
   };
 
+  /* 선택 도구: 화면 점 q 가까이(tol px)에 있는, 고른 도로의 끝 손잡이 */
+  app.roadEndAt = function (q, tol) {
+    const sel = this.state.sel; if (!sel || sel.type !== 'road' || this.state.multi.length) return null;
+    const r = this.road(sel.id); if (!r) return null;
+    const V = M.verts(r), r2 = this.r2;
+    for (const i of [0, V.length - 1]) { const s = r2.w2s(V[i]); if (Math.hypot(s[0] - q[0], s[1] - q[1]) < (tol || 11)) return { road: r, i }; }
+    return null;
+  };
+  /* 끌어 놓은 도로 끝(i: 0 또는 마지막)이 다른 도로 하나의 끝에만 닿았으면 잇는다.
+     단면(구간 구성)이 같으면 한 도로로 합치고(이름은 실제 이름 쪽), 다르면 두 도로로 둔 채 끝만 맞춘다.
+     다른 도로 위(T자)나 셋 이상 모이는 곳은 끝을 놓은 것만으로 이미 교차로가 된다 */
+  const GENERIC_NAME = /^(새 |대로|중로|소로|이면도로|골목길|국지도로|집산도로|보조간선도로|주간선도로|간선도로|생활도로|보행자도로|보행자우선도로|단지내도로)/;
+  app.joinRoadEnd = function (road, i) {
+    const P = this.P, V = M.verts(road); if (!road || road.ctrl || road.inner) return null;
+    const p = V[i === 0 ? 0 : V.length - 1], near = (q) => U.dist(q, p) < 0.05;
+    if ((P.rabouts || []).some((rb) => rb.c && U.dist(rb.c, p) < 0.5)) return null;
+    let other = null, cnt = 0;
+    for (const r of P.roads) {
+      if (r.id === road.id) continue;
+      const W = M.verts(r), atEnd = near(W[0]) || near(W[W.length - 1]);
+      let onLine = false;
+      if (!atEnd) for (let k = 0; k + 1 < r.pts.length; k++) if (U.distPointSeg(p, r.pts[k], r.pts[k + 1]).d < 0.05) { onLine = true; break; }
+      if (atEnd || onLine) { cnt++; if (atEnd && !r.ctrl && !r.inner) other = r; }
+    }
+    if (cnt !== 1 || !other) return null;
+    // 단면 비교: 이 도로가 달리는 방향으로 맞춘 다른 도로의 구간(뒤집으면 좌우 차례와 차로 방향도 뒤집힘)
+    const tail = i !== 0, oStart = near(other.pts[0]);
+    const revB = tail ? !oStart : oStart; // 이 도로 끝 뒤로 이어 붙이려면 그 도로가 p에서 시작해야, 앞에 붙이려면 p에서 끝나야
+    const segKey = (segs, rev) => JSON.stringify((rev ? segs.slice().reverse() : segs).map((g) => [g.type, U.round(g.w, 2), g.dir ? (rev ? -g.dir : g.dir) : 0]));
+    if (segKey(road.segs || [], false) !== segKey(other.segs || [], revB)) return { connected: true, diff: true };
+    const Bo = revB ? other.pts.slice().reverse() : other.pts.slice();
+    road.pts = (tail ? road.pts.concat(Bo.slice(1)) : Bo.concat(road.pts.slice(1))).map((q) => [U.round(q[0], 2), U.round(q[1], 2)]);
+    const gen = (n) => GENERIC_NAME.test(n || '');
+    if (gen(road.name) && !gen(other.name)) road.name = other.name;
+    P.roads = P.roads.filter((r) => r.id !== other.id);
+    const st = this.state;
+    if (st.secRoadId === other.id) st.secRoadId = road.id;
+    st.sel = { type: 'road', id: road.id }; st.multi = [];
+    return { merged: true, name: road.name, removed: other.id };
+  };
   app.snapPoint = function (w, prev, excludeRoadId) {
     const P = this.P, D = this.D;
     const tol = 10 / this.r2.view.s;
@@ -15579,7 +15709,7 @@ void main(){
     UDS.ui.palette();
     const grew = this.P.site.w !== w0 || this.P.site.h !== h0;
     if (ext && !grew) UDS.ui.toast(`${road.name}을(를) 이어 그렸습니다. 길이 ${U.fmt(U.polylineLength(road.pts), 0)}m`);
-    else if (!grew && this.D.deadEnds.some((d) => d.roadId === road.id)) UDS.ui.toast('도로 끝이 다른 도로나 대상지 경계에 닿지 않았습니다. [이동] 도구로 끝점을 끌어 이어 주세요.');
+    else if (!grew && this.D.deadEnds.some((d) => d.roadId === road.id)) UDS.ui.toast('도로 끝이 다른 도로나 대상지 경계에 닿지 않았습니다. 도로를 골라 끝 손잡이를 끌어 이어 주세요.');
     else if (inner && !grew) UDS.ui.toast(`${road.name}을(를) 그렸습니다(${C.SHAPES[road.shape] || ''} · 폭 ${U.fmt(Dv.roadWidth(road), 1)}m · 길이 ${U.fmt(U.polylineLength(road.pts), 0)}m). 가구는 나누지 않고, 지나는 자리의 건물은 길에서 물러납니다. 모양·폭은 오른쪽 [속성]에서 바꿉니다.`);
   };
   app.cancelDraw = function () { const st = this.state; st.drawRoad = null; st.snap = null; UDS.ui.hint(); this.invalidate(1); };
@@ -15926,6 +16056,7 @@ void main(){
       if (!!st.secHot !== hot) { st.secHot = hot; this.invalidate(1); }
       if (hot) { r2.cv.style.cursor = 'pointer'; this._hovH = true; return; }
     }
+    if (st.tool === 'select' && this.roadEndAt(q, 11)) { r2.cv.style.cursor = 'grab'; this._hovH = true; return; } // 고른 도로의 끝: 끌어 잇기
     if (st.tool === 'select' || st.tool === 'move') { // 건물 변·돌리기 손잡이
       const ht = r2.hitTest(q);
       const hd = ht && (ht.type === 'object' || ht.type === 'tree') ? null : this.bldHandleAt(q, 7);
@@ -16058,6 +16189,10 @@ void main(){
       const st = app.state;
       g = { kind: 'tap', sx: q[0], sy: q[1], moved: false, cx0: r2.view.cx, cy0: r2.view.cy, btn: e.button || 0, shift: !!e.shiftKey };
       // 끌어 옮기기는 이동 도구에서만(선택 도구에서는 끌면 화면이 움직인다). Shift는 여럿 고르기라 옮기지 않는다
+      if (st.tool === 'select' && !e.button && !e.shiftKey) { // 고른 도로의 끝을 끌어 다른 도로에 잇기
+        const hd = app.roadEndAt(q, e.pointerType === 'mouse' ? 11 : 16);
+        if (hd) { g.kind = 'vertex'; g.road = hd.road; g.i = hd.i; g.join = true; }
+      }
       if (st.tool === 'move' && !e.button && !e.shiftKey) {
         const sel = st.sel;
         if (sel && sel.type === 'water') { // 자유형 연못·하천: 찍은 점을 끌어 모양을 고친다
@@ -16126,6 +16261,11 @@ void main(){
         if (!g.moved && Math.hypot(dx, dy) < (e.pointerType === 'mouse' ? 5 : 8)) return;
         g.moved = true; clearTimeout(g.lt);
         if (g.kind === 'vertex') {
+          if (!g.p0) { // 끌기 시작: 처음 자리와 그때 끊긴 끝이었는지(끄는 동안에는 장면을 새로 셈하므로 지금 기억)
+            const V0 = M.verts(g.road); g.p0 = V0[g.i].slice();
+            g.wasDead = (g.i === 0 || g.i === V0.length - 1) && app.D.deadEnds.some((d) => d.roadId === g.road.id && U.dist(d.p, g.p0) < 0.5);
+            if (g.join && !(st.sel && st.sel.type === 'road' && st.sel.id === g.road.id)) { st.sel = { type: 'road', id: g.road.id }; st.multi = []; }
+          }
           const sp = app.snapPoint(r2.s2w(q), null, g.road.id);
           M.verts(g.road)[g.i] = sp.p;
           if (g.road.ctrl) M.reshape(g.road);
@@ -16199,8 +16339,13 @@ void main(){
         if (gg.kind === 'bld') { app.state.bldBusy = false; if (gg.bd) app.bldDragEnd(gg.bd, !!(e.altKey || e.ctrlKey || e.metaKey || gg.copy)); return; }
         if (gg.kind === 'bldh') { app.state.bldBusy = false; if (gg.op) app.bldOpEnd(gg.op); else app.state.bldOp = null; if (gg.hd.kind === 'rot') r2.cv.style.cursor = 'grab'; return; }
         if (gg.kind === 'vertex' || gg.kind === 'object' || gg.kind === 'road' || gg.kind === 'rab' || gg.kind === 'wvertex' || gg.kind === 'water') {
+          const V0 = gg.kind === 'vertex' ? M.verts(gg.road) : null, isEnd = V0 && (gg.i === 0 || gg.i === V0.length - 1);
+          const wasDead = isEnd && !!gg.wasDead;
+          const jn = isEnd ? app.joinRoadEnd(gg.road, gg.i) : null;
           app.state.snap = null; app.commit();
-          if (gg.kind === 'road' && app.D.deadEnds.length > gg.dead0) UDS.ui.toast('도로 끝이 다른 도로나 대상지 경계에서 떨어졌습니다. 끝점을 끌어 다시 이어 주세요.');
+          if (jn && jn.merged) UDS.ui.toast(`두 도로를 한 도로(${jn.name})로 이었습니다. ${UDS.ui.undoTip()}`);
+          else if (isEnd && wasDead && !app.D.deadEnds.some((d) => d.roadId === gg.road.id && U.dist(d.p, M.verts(gg.road)[gg.i === 0 ? 0 : M.verts(gg.road).length - 1]) < 0.5)) UDS.ui.toast(jn && jn.diff ? '도로를 이었습니다. 단면이 달라 두 도로로 둡니다.' : '도로를 이었습니다.');
+          if (gg.kind === 'road' && app.D.deadEnds.length > gg.dead0) UDS.ui.toast('도로 끝이 다른 도로나 대상지 경계에서 떨어졌습니다. 끝 손잡이를 끌어 다시 이어 주세요.');
         }
         return;
       }
@@ -17212,6 +17357,7 @@ void main(){
     if (r.inner) return paneInner(f, r, info);
     let h = phead(UDS.PRESET_ICON[r.preset] || 'road', r.name, `${C.FN[r.fn].name} · ${info.cls} ${trim(lay.W)}m · 연장 ${trim(info.len, 0)}m`,
       `<button class="ibtn" data-act="delroad" title="도로 지우기" aria-label="도로 지우기">${icon('trash', 16)}</button>`);
+    if (app.D.deadEnds.some((d) => d.roadId === r.id)) h += `<p class="zln warnln">끝이 다른 도로에 닿지 않았습니다(평면의 칠한 동그라미). 그 끝을 끌어 다른 도로의 끝이나 길 위에 놓으면 이어집니다. 단면이 같으면 한 도로로 합칩니다.</p>`;
     h += f.text('이름', r.name, (v) => { r.name = v.trim() || '도로'; });
     h += f.sel('기능', r.fn, (v) => { r.fn = v; }, Object.keys(C.FN).map((k) => [k, C.FN[k].name]));
     h += f.sel('표준 단면', '', (v) => { if (!v) return false; app.applyPreset(r, v); }, [['', '위계를 골라 단면 교체…']].concat(C.PRESET_ORDER.map((k) => [k, C.PRESETS[k].name])));
@@ -18175,7 +18321,7 @@ void main(){
   function helpDlg() {
     ui.dialog('사용법', '<ul class="help">' +
       '<li><b>대상지</b>는 왼쪽 메뉴의 [대상지]에서 고릅니다. 도시(가상), 구도심(가상), 누를 때마다 새로 만드는 임의생성(가상), 아무것도 없는 빈 대상지, 지도에서 고른 실제 지역([지도에서 삽입]) 가운데 하나로 시작합니다. 지도 캡처 그림에서 도로를 읽어 만드는 대상지는 [프로젝트 → 새 프로젝트]에 있습니다.</li>' +
-      '<li><b>실제 지역</b>: [대상지]의 [지도에서 삽입](또는 [프로젝트] 메뉴)에서 장소를 찾고 지도를 끌어 가운데 사각형을 대상지에 맞춘 뒤 [대상지 만들기]를 누릅니다. 인증키 없이 공개 지도 자료(Overture Maps·OpenStreetMap)로 건물 윤곽과 도로 중심선(따로 그려진 양방향 차도는 하나로, 원형 교차로는 회전교차로로)을 세우고, 층수·높이 자료가 없는 건물은 용도와 건축면적으로 어림합니다. 브이월드 인증키가 있으면 건물(GIS건물통합정보)의 층수·높이·용도·사용승인일과 지적(연속지적도)으로 세웁니다. 오른쪽 [현황]에서 입면·단색·용도·층수·건축 연도·높이 근거로 칠해 보고, 현황 건물을 눌러 속성을 보거나 지상 층수·입면 유형을 고칩니다. 입면(재료·창·1층·간판·지붕)은 외관 자료가 없어 층수·건축면적·평면 모양·용도·면한 길로 추정해 입힌 것입니다. 가구에 건물을 놓거나 용도를 정하면 그 자리의 현황 건물은 철거된 것으로 보고 점선 윤곽만 남깁니다.</li>' +
+      '<li><b>도로 잇기</b>: 도로를 고르면 두 끝에 동그라미 손잡이가 보입니다(다른 도로에 닿지 않은 끝은 속을 칠함). 손잡이를 끌어 다른 도로의 끝에 놓으면 이어지고, 단면이 같으면 한 도로로 합칩니다(이름은 실제 이름 쪽). 다른 도로 위에 놓으면 T자 교차로가 됩니다. Ctrl+Z로 되돌립니다.</li><li><b>실제 지역</b>: [대상지]의 [지도에서 삽입](또는 [프로젝트] 메뉴)에서 장소를 찾고 지도를 끌어 가운데 사각형을 대상지에 맞춘 뒤 [대상지 만들기]를 누릅니다. 인증키 없이 공개 지도 자료(Overture Maps·OpenStreetMap)로 건물 윤곽과 도로 중심선(따로 그려진 양방향 차도는 하나로, 원형 교차로는 회전교차로로)을 세우고, 층수·높이 자료가 없는 건물은 용도와 건축면적으로 어림합니다. 브이월드 인증키가 있으면 건물(GIS건물통합정보)의 층수·높이·용도·사용승인일과 지적(연속지적도)으로 세웁니다. 오른쪽 [현황]에서 입면·단색·용도·층수·건축 연도·높이 근거로 칠해 보고, 현황 건물을 눌러 속성을 보거나 지상 층수·입면 유형을 고칩니다. 입면(재료·창·1층·간판·지붕)은 외관 자료가 없어 층수·건축면적·평면 모양·용도·면한 길로 추정해 입힌 것입니다. 가구에 건물을 놓거나 용도를 정하면 그 자리의 현황 건물은 철거된 것으로 보고 점선 윤곽만 남깁니다.</li>' +
       '<li><b>작업 순서·계획 목표</b>: 속성 탭 맨 위의 작업 순서(대상지 → 도로망 → 용도·밀도 → 건축물 → 가로 단면 → 법규 검토)가 끝낸 단계를 표시하고 다음 할 일을 알려 줍니다. 지표 탭의 [계획 목표]에 용적률·건폐율·도로율·공원·녹지율·인구 목표를 넣으면 지금 계획과 견주어 막대로 보여 줍니다(목표는 계획과 함께 저장).</li>' +
       '<li><b>메뉴 막대</b>(왼쪽 위 로고 아래): [프로젝트]에는 새 프로젝트·작업 파일 열기·저장·내보내기·처음 상태로 되돌리기·전체 지우기가, [편집]에는 되돌리기·도구·지우기·빈 가구 채우기가, [보기]에는 화면 배치·크게 보기·표현·레이어·그림자·패널 접기가, [도움말]에는 사용법과 단축키가 있습니다. 처음 상태로 되돌리기와 전체 지우기도 되돌리기(Ctrl+Z)로 다시 살릴 수 있습니다.</li>' +
       '<li><b>왼쪽 메뉴</b>(창이 좁으면 왼쪽의 좁은 띠, 휴대폰은 아래 막대)의 Draw 아래 [도로]·[건물]·[가로시설물]·[조경]을 누르면 세부 항목이 펼쳐집니다. 그 아래 View &amp; Visibility에는 음영분석·3D 오브젝트·레이어와 맨 아래 화면 배치·표현 단추가 있습니다. 도로는 위계를 고른 뒤 평면에 점을 찍어 내고, 건물은 용도를 고른 뒤 획지를 눌러 세우며, 교목·가로등·벤치 등은 고른 뒤 평면이나 3D에 눌러 놓습니다.</li>' +
@@ -19190,7 +19336,7 @@ void main(){
         </section>
       </div>
     </div>`;
-    const d = ui.dialog('실제 지역 불러오기', body, '<button class="btn pri" id="rlGo" disabled>대상지 만들기</button><button class="btn" data-act="closedlg">취소</button><span class="mut" style="font-size:11.5px">받은 자료는 이 브라우저 안에서만 씁니다.</span>');
+    const d = ui.dialog('지도에서 삽입 · 브이월드 자료 붙여 넣기', body, '<button class="btn pri" id="rlGo" disabled>대상지 만들기</button><button class="btn" data-act="closedlg">취소</button><span class="mut" style="font-size:11.5px">받은 자료는 이 브라우저 안에서만 씁니다.</span>');
     $('.dlg', d).classList.add('big', 'real');
     bind(d);
     sync();
@@ -19465,14 +19611,28 @@ void main(){
     return bundleCache.get(s.file);
   }
 
+  /* Claude 화면(아티팩트) 안에서: 보안 정책으로 바깥 서버에 요청할 수 없어 지도를 띄울 수 없다.
+     웹 주소로 열어 지도에서 고르게 하고(같은 자리에서 이어 쓰려면 작업 파일로 옮김), 브이월드 붙여 넣기도 남겨 둔다 */
+  const WEB_URL = 'https://ohjooseok.github.io/urbify/';
+  function sandboxDialog() {
+    const body = `<div class="spsb">
+      <p>Claude 화면(아티팩트) 안에서는 보안 정책으로 바깥 지도·자료 서버에 접속할 수 없어 <b>지도에서 고르기를 쓸 수 없습니다</b>. 같은 앱을 웹 주소로 열면 지도에서 장소를 찾고 범위를 맞춰 바로 넣을 수 있습니다.</p>
+      <p class="spsbu"><span>${WEB_URL}</span></p>
+      <ul>
+        <li>웹에서 만든 계획을 여기서 이어 쓰려면 웹에서 [프로젝트 → 작업 파일 저장] 후 여기서 [작업 파일 열기]</li>
+        <li>브이월드 인증키가 있으면 여기서도 [브이월드 자료 붙여 넣기]로 넣을 수 있음</li>
+      </ul></div>`;
+    ui.dialog('지도에서 삽입', body,
+      `<a class="btn pri" href="${WEB_URL}" target="_blank" rel="noopener" id="spWeb">${icon('map', 14)}웹에서 지도로 고르기</a>` +
+      `<button class="btn" id="spPaste">브이월드 자료 붙여 넣기</button><button class="btn" data-act="closedlg">취소</button>`);
+    const pb = document.getElementById('spPaste');
+    if (pb) pb.addEventListener('click', () => { ui.closeDialog(); if (ui.realDialog) ui.realDialog(); });
+  }
+
   /* ---------- 대화상자 ---------- */
   ui.siteDialog = function () {
     ui.closePop();
-    if (X.inSandbox()) { // Claude 화면 안에서는 바깥 지도·자료에 닿을 수 없다: 붙여 넣는 방식으로
-      if (ui.realDialog) ui.realDialog();
-      ui.toast('이 화면에서는 지도를 쓸 수 없어 자료 붙여 넣기 방식으로 엽니다. 지도에서 고르기는 ohjooseok.github.io/urbify 에서 씁니다.');
-      return;
-    }
+    if (X.inSandbox()) { sandboxDialog(); return; } // Claude 화면(아티팩트) 안: 바깥 지도·자료 서버에 닿을 수 없다
     const edited = app.isEdited();
     const typeOpts = Object.keys(MI.TYPES).map((k) => `<option value="${k}"${k === st.type ? ' selected' : ''}>${MI.TYPES[k].name}</option>`).join('');
     const src = (k, b, i) => `<label class="spsrc"${k === 'class' ? ' id="spClassL" hidden' : ''}><input type="radio" name="spSrc" value="${k}"${st.src === k ? ' checked' : ''}><span><b>${b}</b><i${k === 'class' ? ' id="spClassI"' : ''}>${i}</i></span></label>`;

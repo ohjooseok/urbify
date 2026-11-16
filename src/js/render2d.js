@@ -320,6 +320,11 @@
         // 꼭짓점 손잡이는 끌어 옮길 수 있을 때(이동 도구)만 보인다. 단지 안 길(곡선·둥근 모서리)은 찍은 점과 그 점을 잇는 가는 선
         if (target === sel && info.road.ctrl && info.road.shape !== 'line') pen.line(info.road.ctrl, { stroke: color, lw: 1, dash: [2, 3], salpha: 0.8 });
         if (target === sel && st.tool === 'move') UDS.Model.verts(info.road).forEach((p, i) => pen.circle(p, 5.5, { rpx: true, fill: '#fff', stroke: color, lw: 2 }));
+        // 선택 도구: 두 끝만(끌어 다른 도로에 이을 수 있음). 끊긴 끝(막다른 끝)은 속을 칠해 눈에 띄게
+        else if (target === sel && st.tool === 'select') {
+          const V = UDS.Model.verts(info.road);
+          [V[0], V[V.length - 1]].forEach((p) => { const dead = D.deadEnds.some((d) => d.roadId === info.road.id && U.dist(d.p, p) < 0.5); pen.circle(p, 6, { rpx: true, fill: dead ? color : '#fff', stroke: color, lw: 2 }); });
+        }
       } else if (target.type === 'lot' || target.type === 'building') {
         const lot = D.lots.find((l) => l.id === target.id);
         if (!lot) return;

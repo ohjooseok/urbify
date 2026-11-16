@@ -663,6 +663,86 @@
       nDual++;
     });
     if (nDual) chainAll();
+    /* (3-b) 이음새 고치기: 같은 길이 교차로에서 어긋나 끊겨 보이는 것을 바로잡는다
+       (가) 가까운 교차점 모으기: 6.5m 안의 두 교차점이 짧은 길로 바로 이어졌거나 같은 이웃 교차점을 두면(어긋난 십자로, 갈라졌다 다시 만나는 짧은 두 갈래) 한 점으로.
+            그 결과 겹치는 길(같은 두 점을 잇고 서로 가까움)은 하나만, 제자리로 도는 짧은 길은 버린다
+       (나) 다른 길 바로 앞에서 끊긴 끝(가운데 선으로 합친 양방향 차도의 끝 등): 앞쪽 5m 안의 교차점이나 4m 안의 길에 잇는다(길은 그 자리에서 나눔) */
+    const rabSet = new Set(rabNodes.map((x) => x.C));
+    const CJ = 6.5;
+    const dist2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const res0 = (n) => { while (n.alias) n = n.alias; return n; };
+    const live = () => { const st = new Set(); edges.forEach((e) => { st.add(e.a); st.add(e.b); }); return [...st]; };
+    const nbrs = (n) => new Set(n.e.map((e) => (e.a === n ? e.b : e.a)));
+    const midOf = (pts) => { const L = lenOf(pts); let acc = 0; for (let i = 1; i < pts.length; i++) { const l = dist2(pts[i - 1], pts[i]); if (acc + l >= L / 2) { const t = (L / 2 - acc) / (l || 1); return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t]; } acc += l; } return pts[0]; };
+    const kill2 = (e) => { drop(e); edges = edges.filter((x) => x !== e); };
+    const dedupe = () => {
+      const seen = new Map();
+      edges.slice().forEach((e) => {
+        if (e.a === e.b) { if (lenOf(e.pts) < 40) kill2(e); return; }
+        const k = e.a.id < e.b.id ? e.a.id + '_' + e.b.id : e.b.id + '_' + e.a.id;
+        const o = seen.get(k);
+        if (!o) { seen.set(k, e); return; }
+        const nb = near(midOf(e.pts), o.pts);
+        if (!nb || nb.d > 6) return; // 서로 떨어진 두 길(작은 가구를 사이에 둔 길)은 둘 다 둔다
+        const keep = rank(o) >= rank(e) ? o : e;
+        kill2(keep === o ? e : o); seen.set(k, keep);
+      });
+    };
+    try { // 고치기가 어떤 자료에서 실패해도 받기는 이어 간다(고치기 전 그대로)
+    {
+      const L = live().filter((n) => !rabSet.has(n)), S = 8, G2 = new Map();
+      L.forEach((n) => { const k = Math.floor(n.p[0] / S) + ',' + Math.floor(n.p[1] / S); if (!G2.has(k)) G2.set(k, []); G2.get(k).push(n); });
+      const cand = [];
+      L.forEach((n) => {
+        const cx = Math.floor(n.p[0] / S), cy = Math.floor(n.p[1] / S);
+        for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) (G2.get(cx + i + ',' + (cy + j)) || []).forEach((m) => { if (m.id > n.id) { const d = dist2(n.p, m.p); if (d < CJ) cand.push({ n, m, d }); } });
+      });
+      cand.sort((x, y) => x.d - y.d);
+      let nj = 0;
+      cand.forEach(({ n, m }) => {
+        const a = res0(n), b = res0(m);
+        if (a === b || rabSet.has(a) || rabSet.has(b) || dist2(a.p, b.p) >= CJ) return;
+        const da = a.e.length, db = b.e.length;
+        if (da < 2 || db < 2 || Math.max(da, db) < 3) return;
+        const direct = a.e.some((e) => (e.a === b || e.b === b) && lenOf(e.pts) < CJ + 2);
+        const na = nbrs(a), common = [...nbrs(b)].some((w) => w !== a && w !== b && na.has(w));
+        if (!direct && !common) return;
+        mergeNodes(a, b); nj++;
+        dedupe();
+      });
+      if (nj) dedupe();
+    }
+    {
+      const pinAt = (e, q) => { // 길 e 위의 q 자리(끝 가까우면 그 끝). 그 길은 나누지 않는다(앱은 다른 길 위에 닿은 끝을 T자 교차로로 본다)
+        if (dist2(q, e.a.p) < 2) return e.a;
+        if (dist2(q, e.b.p) < 2) return e.b;
+        let bi = 0, bd = Infinity;
+        for (let i = 0; i + 1 < e.pts.length; i++) { const r = U.distPointSeg(q, e.pts[i], e.pts[i + 1]); if (r.d < bd) { bd = r.d; bi = i; } }
+        const w = { id: nodes.length, p: [q[0], q[1]], e: [] }; nodes.push(w);
+        e.pts.splice(bi + 1, 0, w.p);
+        return w;
+      };
+      const absorb = (v, u) => { u.e.slice().forEach((e) => relink(e, u, v)); u.alias = v; };
+      let ns = 0;
+      live().filter((n) => n.e.length === 1 && !rabSet.has(n)).forEach((u0) => {
+        const u = res0(u0);
+        if (u.e.length !== 1) return;
+        const eu = u.e[0], other = eu.a === u ? eu.b : eu.a, din = dirAt(eu, u), out = [-din[0], -din[1]];
+        const ahead = (q, d) => d <= 1.5 || ((q[0] - u.p[0]) * out[0] + (q[1] - u.p[1]) * out[1]) / d >= 0.26; // 끝에서 길이 뻗던 쪽(±75°)
+        let best = null;
+        live().forEach((v) => { if (v === u || v === other || rabSet.has(v)) return; const d = dist2(u.p, v.p); if (d <= 5 && ahead(v.p, d) && (!best || d < best.d)) best = { d, v }; });
+        edges.forEach((e) => {
+          if (e === eu) return;
+          const nb = near(u.p, e.pts); if (!nb || nb.d > 4 || (best && best.d <= nb.d) || !ahead(nb.q, nb.d)) return;
+          best = { d: nb.d, e, q: nb.q };
+        });
+        if (!best) return;
+        absorb(best.v || pinAt(best.e, best.q), u); ns++;
+      });
+      if (ns) dedupe();
+    }
+    } catch (err) { if (typeof console !== 'undefined') console.warn('도로 이음새 고치기 건너뜀', err); }
+    chainAll();
     /* (4) 점 줄이기(더글러스-포이커), 대상지 경계로 자르기 */
     let res = [];
     edges.forEach((e) => {
@@ -681,7 +761,7 @@
     for (let pass = 0; pass < 3; pass++) {
       const cnt = new Map();
       res.forEach((s) => [s.pts[0], s.pts[s.pts.length - 1]].forEach((p) => cnt.set(key(p), (cnt.get(key(p)) || 0) + 1)));
-      const touches = (p, self) => res.some((o) => o !== self && o.pts.some((q, i) => i > 0 && i < o.pts.length - 1 && Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.8));
+      const touches = (p, self) => res.some((o) => { if (o === self) return false; for (let i = 0; i + 1 < o.pts.length; i++) if (U.distPointSeg(p, o.pts[i], o.pts[i + 1]).d < 0.8) return true; return false; }); // 다른 길 위(T자)
       const linked = (p, s) => onEdge(p) || nearRab(p) || cnt.get(key(p)) > 1 || touches(p, s);
       const n0 = res.length;
       res = res.filter((s) => s.len >= 25 || (linked(s.pts[0], s) && linked(s.pts[s.pts.length - 1], s)) || (s.len >= 10 && (linked(s.pts[0], s) || linked(s.pts[s.pts.length - 1], s))));

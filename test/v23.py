@@ -47,6 +47,16 @@ async def main():
         await ev("document.querySelector('[data-new=\"real\"]').click()"); await pg.wait_for_timeout(500)
         check('지도에서 삽입 opens the site picker', await ev("!!document.querySelector('.dlg.site') || !!document.querySelector('.dlg')"))
         await ev("UDS.ui.closeDialog()"); await pg.wait_for_timeout(200)
+        # Claude 화면(아티팩트) 안: 지도를 못 쓰므로 웹 주소로 안내, 브이월드 붙여 넣기는 남김
+        await ev("window.claude = { use: () => null }; UDS.ui.siteDialog()"); await pg.wait_for_timeout(300)
+        sb = await ev("(() => { const d = document.querySelector('#dialog .dlg'); const a = document.querySelector('#spWeb'); return { title: d && d.getAttribute('aria-label'), href: a && a.getAttribute('href'), target: a && a.target, paste: !!document.querySelector('#spPaste'), map: !!document.querySelector('.dlg.site') }; })()")
+        check('artifact: guide dialog with link to web map', sb['title'] == '지도에서 삽입' and sb['href'] == 'https://ohjooseok.github.io/urbify/' and sb['target'] == '_blank' and sb['paste'] and not sb['map'], sb)
+        await pg.click('#spPaste'); await pg.wait_for_timeout(300)
+        t2 = await ev("(document.querySelector('#dialog .dlg') || {}).getAttribute ? document.querySelector('#dialog .dlg').getAttribute('aria-label') : null")
+        check('artifact: paste method still reachable', t2 == '지도에서 삽입 · 브이월드 자료 붙여 넣기', t2)
+        await pg.screenshot(path=OUTD + '/v23_sandbox_paste.png')
+        await ev("UDS.ui.closeDialog(); delete window.claude;"); await pg.wait_for_timeout(200)
+        check('outside Claude: map picker again', await ev("(() => { UDS.ui.siteDialog(); const ok = !!document.querySelector('.dlg.site'); UDS.ui.closeDialog(); return ok; })()"))
 
         # 2) 보행자우선도로: 회색(평면·3D가 같은 구간 색을 씀)
         col = await ev("UDS.C.SEG.shared.color")
