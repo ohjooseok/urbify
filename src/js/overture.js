@@ -424,7 +424,7 @@
       const cx = Math.floor(p[0] / 2), cy = Math.floor(p[1] / 2);
       for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
         const l = grid.get(cx + i + ',' + (cy + j)); if (!l) continue;
-        for (const n of l) if (Math.hypot(n.p[0] - p[0], n.p[1] - p[1]) < SN) return n;
+        for (const n of l) if (Math.hypot(n.p[0] - p[0], n.p[1] - p[1]) < SN) { let m = n; while (m.alias) m = m.alias; return m; }
       }
       const n = { id: nodes.length, p: [p[0], p[1]], e: [] };
       nodes.push(n);
@@ -479,7 +479,7 @@
     };
     chainAll();
     /* (2) 회전교차로: 짧은 호들이 이룬 고리가 원에 가까우면(반지름 6–35m, 모서리 없음) 원 중심으로 길을 모은다 */
-    const rabs = [];
+    const rabs = [], rabNodes = [];
     const shortE = new Set(edges.filter((e) => lenOf(e.pts) <= 160));
     const inLoop = new Set();
     const ringPts = (path) => { // 고리를 이루는 호들의 점을 차례로
@@ -536,7 +536,62 @@
         x.a.e.push(x); x.b.e.push(x);
       }));
       rabs.push({ p: [U.round(c[0], 2), U.round(c[1], 2)], d: U.clamp(Math.round(2 * (r + 2.75)), 16, 60) });
+      rabNodes.push({ C, r });
     });
+    /* (2-b) 회전교차로 팔 정리: 한 방향에서 들어오는 여러 갈래(진입로·진출로가 따로 그려진 것, 나란한 샛길)를 곧은 한 갈래로 묶고,
+       바깥 끝이 다른 길과 닿지 않는 짧은 꼬리는 버린다. 갈래들의 바깥 끝 점은 한 점(가운데)으로 모은다 */
+    const along = (e, from, dist) => { // e를 from 쪽 끝에서 dist(m)만큼 간 점
+      const P = e.a === from ? e.pts : e.pts.slice().reverse();
+      let acc = 0;
+      for (let i = 1; i < P.length; i++) {
+        const L = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+        if (acc + L >= dist) { const t = (dist - acc) / (L || 1); return [P[i - 1][0] + (P[i][0] - P[i - 1][0]) * t, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t]; }
+        acc += L;
+      }
+      return P[P.length - 1];
+    };
+    const relink = (e, from, to) => { // e의 from 끝을 to 점으로
+      drop(e);
+      if (e.a === from) { e.a = to; e.pts = [to.p].concat(e.pts.slice(1)); }
+      if (e.b === from) { e.b = to; e.pts = e.pts.slice(0, -1).concat([to.p]); }
+      e.a.e.push(e); e.b.e.push(e);
+    };
+    const mergeNodes = (N1, N2) => { // N2를 N1에 합치고 N1을 두 점의 가운데로
+      const mid = [(N1.p[0] + N2.p[0]) / 2, (N1.p[1] + N2.p[1]) / 2];
+      N2.e.slice().forEach((e) => relink(e, N2, N1));
+      N2.alias = N1;
+      N1.p[0] = mid[0]; N1.p[1] = mid[1];
+      N1.e.forEach((e) => { if (e.a === N1) e.pts[0] = N1.p; if (e.b === N1) e.pts[e.pts.length - 1] = N1.p; });
+      return N1;
+    };
+    const rank = (e) => (e.s.ow ? 0 : 1000) + (O.ROAD_W[e.s.cls] || 0) * 10 + (/[가-힣]/.test(e.s.name || '') ? 5 : 0); // 양방향 > 넓은 등급 > 한글 이름
+    rabNodes.forEach(({ C, r }) => {
+      const kill = (e) => { drop(e); edges = edges.filter((x) => x !== e); };
+      C.e.slice().forEach((e) => { const far = e.a === C ? e.b : e.a; if (far !== C && far.e.length === 1 && lenOf(e.pts) < r + 14) kill(e); });
+      for (let guard = 0; guard < 12; guard++) {
+        const arms = C.e.filter((e) => e.a !== e.b).map((e) => { const far = e.a === C ? e.b : e.a, q = along(e, C, r + 10); return { e, far, ang: Math.atan2(q[1] - C.p[1], q[0] - C.p[0]) }; });
+        let pair = null;
+        for (let i = 0; i < arms.length && !pair; i++) for (let j = i + 1; j < arms.length && !pair; j++) {
+          let da = Math.abs(arms[i].ang - arms[j].ang); if (da > Math.PI) da = 2 * Math.PI - da;
+          const dfar = Math.hypot(arms[i].far.p[0] - arms[j].far.p[0], arms[i].far.p[1] - arms[j].far.p[1]);
+          if (da < 0.7 && dfar < 35 && arms[i].far !== C && arms[j].far !== C) pair = [arms[i], arms[j]];
+        }
+        if (!pair) break;
+        const [A, B] = pair;
+        const M = A.far === B.far ? A.far : mergeNodes(A.far, B.far);
+        const keep = rank(A.e) >= rank(B.e) ? A.e : B.e, lose = keep === A.e ? B.e : A.e;
+        kill(lose);
+        drop(keep);
+        keep.pts = keep.a === C ? [C.p, M.p] : [M.p, C.p];
+        if (keep.a === C) keep.b = M; else keep.a = M;
+        keep.s = { ...keep.s, ow: 0 };
+        keep.a.e.push(keep); keep.b.e.push(keep);
+      }
+      // 고리 둘레를 감싸는 짧은 샛길(이웃한 입구끼리 잇는 우회전 연결로 등): 두 끝이 모두 원 가까이(r+35m 안)에 있고 원 중심에 닿지 않는 짧은 길은 버린다
+      const nearC = (n) => Math.hypot(n.p[0] - C.p[0], n.p[1] - C.p[1]) < r + 35;
+      edges.filter((e) => e.a !== C && e.b !== C && nearC(e.a) && nearC(e.b) && lenOf(e.pts) < 90).forEach(kill);
+    });
+    if (rabNodes.length) chainAll();
     /* (3) 양방향이 따로 그려진 길(한 방향 통행 둘이 나란히, 서로 반대로 달림)을 가운데 선 하나로 */
     const SEP = { motorway: 45, trunk: 45, primary: 40, secondary: 32, tertiary: 26 };
     const near = (p, pts) => { // 꺾은선 위의 가장 가까운 점과 그 구간의 방향

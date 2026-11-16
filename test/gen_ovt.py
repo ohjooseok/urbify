@@ -62,13 +62,19 @@ for k, (a, b) in enumerate([(-400, -200), (-200, 0), (0, 200), (200, 400)]):
 seg('jc-1', [(-400, 0), (-6, 0)], 'tertiary', '조치원로')
 seg('jc-2', [(-6, 0), (6, 0)], 'tertiary', '조치원로')
 seg('jc-3', [(6, 0), (136, 0)], 'tertiary', '조치원로')
-seg('jc-4', [(164, 0), (400, 0)], 'tertiary', '조치원로')
-# 회전교차로: 반지름 14m 고리를 네 호로(한 방향)
+# 회전교차로: 반지름 14m 고리(한 방향). 동쪽 입구는 진입로·진출로가 따로 그려져(삼각 분리섬) 고리의 ±20° 자리에 닿고 190m에서 한 길로 합쳐짐
 R0, C0 = 14, (150, 0)
+def rp(a):
+    return (C0[0] + R0 * math.cos(math.radians(a)), C0[1] + R0 * math.sin(math.radians(a)))
 def arc(a0, a1, n=8):
-    return [(C0[0] + R0 * math.cos(math.radians(a0 + (a1 - a0) * i / n)), C0[1] + R0 * math.sin(math.radians(a0 + (a1 - a0) * i / n))) for i in range(n + 1)]
-for k, (a0, a1) in enumerate([(0, 90), (90, 180), (180, 270), (270, 360)]):
+    return [rp(a0 + (a1 - a0) * i / n) for i in range(n + 1)]
+for k, (a0, a1) in enumerate([(20, 90), (90, 135), (135, 180), (180, 270), (270, 340), (340, 380)]):
     seg(f'rb-{k}', arc(a0, a1), 'tertiary', access_restrictions=ONEWAY)
+seg('jc-4in', [(190, 0), (175, 2), rp(20)], 'tertiary', 'Jochiwon-ro', access_restrictions=ONEWAY)
+seg('jc-4out', [rp(-20), (175, -2), (190, 0)], 'tertiary', '조치원로', access_restrictions=ONEWAY)
+seg('jc-4', [(190, 0), (400, 0)], 'tertiary', '조치원로')
+# 고리에 붙은 짧은 꼬리(바깥 끝이 어디에도 닿지 않음): 버려야 함
+seg('rb-stub', [rp(135), (C0[0] + 18 * math.cos(math.radians(135)), C0[1] + 18 * math.sin(math.radians(135)))], 'service', sub='road')
 # 회전교차로 남북 입구: 새내8길
 seg('sn8-n', [(150, 14), (150, 120)], 'residential', '새내8길')
 seg('sn8-s', [(150, -14), (150, -120)], 'residential', '새내8길')
