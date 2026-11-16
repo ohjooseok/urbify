@@ -1489,7 +1489,7 @@ void main(){
     gl.viewport(0, 0, this.cv.width, this.cv.height);
     let bg = line ? [1, 1, 1] : sky.hor.map((v, i) => v + (sky.top[i] - v) * 0.38);
     const TH = UDS.TH;
-    if (TH && TH.dark && !TH.off) bg = line ? [0.105, 0.12, 0.14] : bg.map((v, i) => v * 0.32 + [0.075, 0.088, 0.105][i] * 0.68); // 다크: 하늘·먼 땅을 어둡게(건물 빛은 그대로)
+    if (TH && TH.inkOn()) bg = line ? [0.105, 0.12, 0.14] : bg.map((v, i) => v * 0.32 + [0.075, 0.088, 0.105][i] * 0.68); // 다크: 하늘·먼 땅을 어둡게(건물 빛은 그대로)
     gl.clearColor(bg[0], bg[1], bg[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);

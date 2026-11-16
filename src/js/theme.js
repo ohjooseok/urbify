@@ -1,14 +1,16 @@
 /* Urbify — 화면 테마(다크 기본 · 라이트 · 시스템 설정 따름)
-   화면 요소의 색은 CSS 변수(:root[data-theme])로 바꾸고, 평면·단면처럼 캔버스에 그리는 그림은 그리는 순간 색을 바꾼다:
-   2D 문맥의 fillStyle·strokeStyle·shadowColor와 그러데이션 색을 가로채 다크용 색으로 옮긴다(그림 코드는 라이트 기준 그대로).
+   다크 테마는 틀(메뉴·패널·막대·대화상자)만 어둡게 하고, 그림(평면·3D·가로 단면·지도)은 라이트 그대로 그린다.
+   화면 요소의 색은 CSS 변수(:root[data-theme])로 바꾼다.
+   그림까지 어둡게 그리는 길(TH.ink = true)도 남겨 둔다: 2D 문맥의 fillStyle·strokeStyle·shadowColor와 그러데이션 색을 가로채 다크용 색으로 옮긴다.
    - 무채색: 밝기를 뒤집는다(종이 → 어두운 바탕, 먹 → 밝은 글자). 반투명한 검정(그림자·덮개)은 어둡게 두고 흰 반투명은 어둡게 뒤집는다
    - 유채색: 옅은 채움(토지이용 등)은 어둡게 낮추고, 진한 색(글자·선)은 밝게 올린다. 색상은 그대로
-   그림 내보내기(PNG·SVG)는 인쇄를 생각해 라이트로 그린다(TH.off) */
+   그림 내보내기(PNG·SVG)는 언제나 라이트(TH.off) */
 (function (G) {
   'use strict';
   const UDS = G.UDS;
   const LS = 'uds.theme';
-  const TH = { pref: 'dark', dark: true, off: false, ver: 0 };
+  const TH = { pref: 'dark', dark: true, off: false, ink: false, ver: 0 }; // ink: 그림도 어둡게(지금은 쓰지 않음)
+  TH.inkOn = () => TH.dark && TH.ink && !TH.off;
   const mq = G.matchMedia ? G.matchMedia('(prefers-color-scheme: dark)') : null;
   try { const v = localStorage.getItem(LS); if (v === 'light' || v === 'dark' || v === 'system') TH.pref = v; } catch (e) { /* 저장 공간 없음 */ }
   const want = () => (TH.pref === 'system' ? !!(mq && mq.matches) : TH.pref === 'dark');
@@ -61,7 +63,7 @@
   const fmt = (d, a) => (a >= 1 ? '#' + d.map((x) => x.toString(16).padStart(2, '0')).join('') : `rgba(${d[0]}, ${d[1]}, ${d[2]}, ${+a.toFixed(3)})`);
   /* 라이트 기준 색 → 지금 테마의 색(text: 글자에 쓰는 색) */
   TH.c = function (s, text) {
-    if (!TH.dark || TH.off || typeof s !== 'string') return s;
+    if (!TH.inkOn() || typeof s !== 'string') return s;
     if (MAPPED.has(s)) return s; // 이미 바꾼 색(되읽어 다시 넣는 경우)
     const C = text ? TCACHE : CACHE;
     let v = C.get(s);
@@ -75,7 +77,7 @@
   };
   /* [r,g,b](0~1) 배열용: 3D 바탕 등 */
   TH.rgb = function (c) {
-    if (!TH.dark || TH.off) return c;
+    if (!TH.inkOn()) return c;
     const d = darkOf(c[0], c[1], c[2], 1, false);
     return d ? d.map((x) => x / 255) : c;
   };
@@ -98,7 +100,7 @@
           const str = typeof v === 'string', orig = str ? (MAPPED.has(v) ? REV.get(v) || null : v) : null; // 되읽은 색이면 원래 색을 찾아 둔다
           if (k === 'fillStyle') fo = orig;
           d.set.call(this, str ? TH.c(v) : v);
-          if (TH.dark && str) { const nv = d.get.call(this); if (!MAPPED.has(nv)) MAPPED.add(nv); if (orig && !REV.has(nv)) REV.set(nv, orig); }
+          if (TH.inkOn() && str) { const nv = d.get.call(this); if (!MAPPED.has(nv)) MAPPED.add(nv); if (orig && !REV.has(nv)) REV.set(nv, orig); }
         },
       });
     });
@@ -107,7 +109,7 @@
     g.restore = function () { if (stk.length) fo = stk.pop(); return rs.call(this); };
     const ft = g.fillText;
     g.fillText = function () {
-      if (TH.dark && !TH.off && fo) { const cur = D.fillStyle.get.call(this), tc = TH.c(fo, true); if (tc !== cur) { D.fillStyle.set.call(this, tc); try { return ft.apply(this, arguments); } finally { D.fillStyle.set.call(this, cur); } } }
+      if (TH.inkOn() && fo) { const cur = D.fillStyle.get.call(this), tc = TH.c(fo, true); if (tc !== cur) { D.fillStyle.set.call(this, tc); try { return ft.apply(this, arguments); } finally { D.fillStyle.set.call(this, cur); } } }
       return ft.apply(this, arguments);
     };
     const wg = (gr) => { const a = gr.addColorStop; gr.addColorStop = function (o, c) { return a.call(this, o, TH.c(c)); }; return gr; };

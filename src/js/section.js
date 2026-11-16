@@ -943,7 +943,7 @@
   /* 그림(PNG) 내보내기용: 지금 화면의 단면 아래에 축척 막대 띠를 붙인 캔버스 */
   S.lctx = function () { const c = this.layer.getContext('2d'); return UDS.TH ? UDS.TH.wrap(c) : c; };
   S.exportCanvas = function () {
-    const TH = UDS.TH, dk = TH && TH.dark;
+    const TH = UDS.TH, dk = !!(TH && TH.inkOn());
     if (dk) TH.off = true; // 그림 파일은 인쇄를 생각해 라이트로 그린다
     try { this.draw(); } finally { if (dk) TH.off = false; }
     if (dk) setTimeout(() => this.draw(), 0); // 화면은 다시 다크로

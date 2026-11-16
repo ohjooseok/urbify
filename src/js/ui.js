@@ -92,7 +92,7 @@
     });
   }
   /* 설명을 풍선 도움말로만 보이는 작은 물음표(누르지 않아도 마우스를 올리면 뜸) */
-  const swc = (c) => (UDS.TH ? UDS.TH.c(c) : c); // 견본 색: 다크 테마에서는 평면에 그려지는 색과 같게
+  const swc = (c) => (UDS.TH ? UDS.TH.c(c) : c); // 견본 색: 평면에 그려지는 색과 같게(그림을 어둡게 그릴 때만 바뀜)
   const tipI = (t) => `<span class="itip" data-tip="${esc(t)}" tabindex="0" role="img" aria-label="${esc(t)}">${icon('help', 14)}</span>`;
   const phead = (ic, title, sub, actions) => `<div class="phead">${picto(ic, 30)}<div class="pt"><b>${esc(title)}</b><span>${sub || ''}</span></div><div class="pa">${actions || ''}</div></div>`;
 
@@ -1659,7 +1659,7 @@
   }
   function exportCanvas(which) {
     let cv = null, name = '';
-    const TH = UDS.TH, dk = TH && TH.dark;
+    const TH = UDS.TH, dk = !!(TH && TH.inkOn());
     let url = '';
     if (which === '3d') {
       if (!app.r3.ok) return;

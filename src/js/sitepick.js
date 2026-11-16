@@ -236,7 +236,7 @@
     const el = $('#spMap');
     if (!el || pick.map) return;
     pick.ml = ml;
-    const dark = !!(UDS.TH && UDS.TH.dark);
+    const dark = !!(UDS.TH && UDS.TH.inkOn()); // 지도도 그림: 다크 테마에서도 밝은 바탕 지도
     let map;
     try {
       map = new ml.Map({
@@ -277,9 +277,9 @@
       try { map.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:ko'], ['get', 'name:nonlatin'], ['get', 'name']]); } catch (e) { /* 무시 */ }
     });
   }
-  const ACC = () => (UDS.TH && UDS.TH.dark ? '#7bd2bf' : '#1f6f5f');
+  const ACC = () => (UDS.TH && UDS.TH.inkOn() ? '#7bd2bf' : '#1f6f5f');
   function addLayers(map) {
-    const dark = !!(UDS.TH && UDS.TH.dark);
+    const dark = !!(UDS.TH && UDS.TH.inkOn());
     const add = (id, data) => { if (!map.getSource(id)) map.addSource(id, { type: 'geojson', data: data || fc([]) }); };
     ['sp-mask', 'sp-site', 'sp-bld', 'sp-road', 'sp-rab', 'sp-rail', 'sp-sites'].forEach((k) => add(k));
     const L = (o) => { if (!map.getLayer(o.id)) map.addLayer(o); };

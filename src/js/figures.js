@@ -831,7 +831,7 @@
     const k = o.k || 1, seed = o.seed || 1, line = !!o.line;
     const hq = Math.floor(Math.min(sp.height * k, o.maxH || 99) * 4) / 4; // 화면에 다 안 들어갈 때만 낮아진다
     const scq = Math.pow(2, Math.round(Math.log2(sc) * 18) / 18);
-    const TH = UDS.TH, dk = TH && TH.dark && !TH.off; // 다크 테마는 다른 그림(색을 바꿔 그림)
+    const TH = UDS.TH, dk = !!(TH && TH.inkOn()); // 다크 테마는 다른 그림(색을 바꿔 그림)
     const key = [sp.name, sp.crown, sp.height, sp.clear, k.toFixed(3), seed, line ? 1 : 0, hq, scq.toFixed(3), dpr, dk ? 'd' : 'l'].join('|');
     let s = TREE_CACHE.get(key);
     if (s) return s;

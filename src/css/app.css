@@ -720,8 +720,6 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
 .spstep{color:var(--accent-ink);font-weight:700}
 .spk{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 3px 0 6px;vertical-align:-1px}
 .spk.d{background:#2f8c7a}.spk.p{background:#e0a85a}.spk.g{background:#9aa1a8}
-:root[data-theme="dark"] .spk.d{background:#4fb9a2}
-:root[data-theme="dark"] .spk.g{background:#8a929b}
 .spattr{font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .dlg.site .df{flex-wrap:nowrap}
 /* MapLibre 조작 단추를 앱 색에 맞춤 */
