@@ -35,7 +35,7 @@
     lane: { name: '차로', en: 'Drive lane', color: '#8A8581', carriage: true, defW: 3.25, dir: 1 },
     bus: { name: '버스전용차로', en: 'Bus lane', color: '#CC9085', carriage: true, defW: 3.25, dir: 1 },
     median: { name: '중앙분리대', en: 'Median', color: '#BBDAC8', carriage: false, defW: 2.0, island: true, green: true },
-    shared: { name: '보행자우선(보차혼용)', en: 'Shared street', color: '#E7DDCB', carriage: false, defW: 6.0, shared: true },
+    shared: { name: '보행자우선(보차혼용)', en: 'Shared street', color: '#A39E98', carriage: false, defW: 6.0, shared: true }, // 회색 포장(차로보다 밝게)
     pedestrian: { name: '보행자전용', en: 'Pedestrian way', color: '#EFE7D7', carriage: false, defW: 8.0, ped: true },
     // 단지 안 길(획지 안에 그리며 가구를 나누지 않는다): 단지내도로(차가 드나드는 포장) · 오솔길(마사토 산책로)
     estate: { name: '단지내도로', en: 'Estate road', color: '#A29B93', carriage: true, defW: 4.0, inner: true },

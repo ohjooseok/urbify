@@ -133,7 +133,7 @@
       // 도시(가상)·구도심(가상) 옆의 주사위: 같은 성격의 대상지를 누를 때마다 새로 만든다
       const dice = (fam, name) => `<button class="pdice" data-scene="random:${fam}" aria-pressed="false" aria-label="${name} 임의생성" data-tip="${name} 임의생성: 누를 때마다 도로망·건물을 새로 만듭니다">${picto('dice', 26)}</button>`;
       return `<div class="pirow">${sc('standard', 'grid', SCENE_NAME.standard)}${dice('new', SCENE_NAME.standard)}</div>` + `<div class="pirow">${sc('oldtown', 'oldtown', SCENE_NAME.oldtown)}${dice('old', SCENE_NAME.oldtown)}</div>` +
-        sc('blank', 'blank', SCENE_NAME.blank) + sc('real', 'city', '실제 지역 고르기…') + sc('import', 'map', '지도 캡처로 만들기…');
+        sc('blank', 'blank', SCENE_NAME.blank) + sc('real', 'city', '지도에서 삽입');
     }
     if (k === 'road') {
       const item = (key) => {
@@ -608,6 +608,7 @@
       if (on) { const r = on.getBoundingClientRect(), pr = el.getBoundingClientRect(); if (r.top < pr.top + 4) el.scrollTop += r.top - pr.top - 10; else if (r.bottom > pr.bottom - 4) el.scrollTop += r.bottom - pr.bottom + 10; }
     }
     $$('#tabs [data-tab]').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === st.tab ? 'true' : 'false'));
+    if (ui._tab0 !== st.tab) { const was = ui._tab0; ui._tab0 = st.tab; if (was === 'checks' || st.tab === 'checks') app.invalidate(1); }
     const n = app.D.checks.filter((c) => c.level !== 'info').length;
     const badge = $('#ckn'); if (badge) { badge.textContent = n; badge.hidden = !n; badge.classList.toggle('bad', app.D.checks.some((c) => c.level === 'error')); }
   };
@@ -708,7 +709,7 @@
       stat('추정 인구', `${trim(m.pop, 0)}명`, `공원 비율 ${pct(m.parkRatio)}`) + '</div>';
     const cx = app.ctxData();
     if (cx) h += ctxSection(f, cx);
-    else if (P.ctx) h += f.head('현황') + '<p class="lead tip">현황 건물 자료가 이 브라우저에 남아 있지 않아 보이지 않습니다. 함께 저장해 둔 작업 파일(.json)을 열거나 [프로젝트 → 실제 지역 불러오기]로 다시 받으세요.</p>';
+    else if (P.ctx) h += f.head('현황') + '<p class="lead tip">현황 건물 자료가 이 브라우저에 남아 있지 않아 보이지 않습니다. 함께 저장해 둔 작업 파일(.json)을 열거나 [지도에서 삽입]으로 다시 받으세요.</p>';
     h += f.head('계획');
     h += f.text('계획 이름', P.meta.title, (v) => { P.meta.title = v.trim() || '계획'; });
     h += f.sel('새 가구 용도', P.meta.defaultUse || 'res', (v) => { P.meta.defaultUse = v; }, C.USE_ORDER.map((k) => [k, C.USES[k].name]), { note: '도로를 내어 새로 생긴 가구에 적용' });
@@ -1292,7 +1293,7 @@
 
   /* 작업 순서: 대상지 → 도로망 → 용도·밀도 → 건축물 → 가로 단면 → 법규 검토. 계획 상태로 끝낸 단계를 표시하고 다음 단계를 안내 */
   const FLOW = [
-    ['site', '대상지', '왼쪽 [대상지]에서 실제 지역(지도에서 고르기)이나 가상 대상지를 고릅니다.'],
+    ['site', '대상지', '왼쪽 [대상지]에서 [지도에서 삽입]으로 실제 지역을 넣거나 가상 대상지를 고릅니다.'],
     ['road', '도로망', '왼쪽 [도로]에서 위계(대로·중로·소로·골목)를 골라 평면에 그립니다. 도로로 둘러싸인 땅이 가구가 됩니다.'],
     ['use', '용도·밀도', '평면에서 가구를 눌러 용도와 건폐율·용적률을 정합니다.'],
     ['bld', '건축물', '획지를 눌러 건물 층수·형태를 정하거나 왼쪽 [건물]에서 놓습니다. 3D에서 스케일을 봅니다.'],
@@ -1411,7 +1412,7 @@
     const sep = '<hr>', cap = (t) => `<div class="mcap">${t}</div>`;
     if (k === 'project') {
       return `<div class="mhead"><b>${esc(P.meta.title || '계획')}</b><i>${SCENE_NAME[P.meta.scene] && SCENE_NAME[P.meta.scene] !== P.meta.title ? SCENE_NAME[P.meta.scene] + ' · ' : ''}${trim(P.site.w, 0)}×${trim(P.site.h, 0)}m · 도로 ${P.roads.length} · 건물 ${D.metrics.buildings}동</i></div>` +
-        it('newproject', null, '새 프로젝트…', { ic: 'newfile' }) + it('realopen', null, '실제 지역 불러오기…', { ic: 'city' }) + it('openfile', null, '작업 파일 열기…', { ic: 'upload', key: KEYMOD + 'O' }) + it('savefile', null, '작업 파일 저장', { ic: 'download', key: KEYMOD + 'S' }) +
+        it('newproject', null, '새 프로젝트…', { ic: 'newfile' }) + it('realopen', null, '지도에서 삽입…', { ic: 'city' }) + it('openfile', null, '작업 파일 열기…', { ic: 'upload', key: KEYMOD + 'O' }) + it('savefile', null, '작업 파일 저장', { ic: 'download', key: KEYMOD + 'S' }) +
         sep + cap('내보내기') + it('exportsvg', null, '평면도 (SVG · 1:1000)', { ic: 'file' }) + it('exportsecsvg', null, '가로 단면 (SVG · 1:100)', { ic: 'file' }) + it('exportsec', null, '가로 단면 (PNG)', { ic: 'image' }) + it('export3d', null, '3D 장면 (PNG)', { ic: 'image' }) + it('airender', null, 'AI 렌더 (Gemini 이미지)…', { ic: 'spark' }) + it('exportmodel', null, '3D 모델 (GLB·DAE·OBJ)…', { ic: 'cube' }) +
         sep + it('resetscene', null, '처음 상태로 되돌리기…', { ic: 'reset' }) + it('clearall', null, '전체 지우기…', { ic: 'trash', warn: true });
     }
@@ -1490,7 +1491,7 @@
       `<div class="nrow">${card('standard', 'grid', SCENE_NAME.standard, '격자형 가구·위계별 도로·근린공원을 갖춘 신시가지(420×300m)')}<button class="nrand" data-new="random:new" data-tip="격자형·변형 격자형 도시를 새로 만듭니다">${picto('dice', 24)}<span>임의생성</span></button></div>` +
       `<div class="nrow">${card('oldtown', 'oldtown', SCENE_NAME.oldtown, '좁은 보도·전주·골목길·노후 상가가 남은 지방 구도심(360×260m)')}<button class="nrand" data-new="random:old" data-tip="구도심형 대상지를 새로 만듭니다">${picto('dice', 24)}<span>임의생성</span></button></div>` +
       card('blank', 'blank', SCENE_NAME.blank, '크기만 정하고 도로부터 직접 그리기') +
-      card('real', 'city', '실제 지역 불러오기', '지도에서 대상지를 골라 실제 동네의 현황 건물과 도로망을 세움(인증키 없이 · 브이월드 인증키가 있으면 층수·용도·사용승인일까지)') +
+      card('real', 'city', '지도에서 삽입', '지도에서 대상지를 골라 실제 동네의 현황 건물과 도로망을 세움(인증키 없이 · 브이월드 인증키가 있으면 층수·용도·사용승인일까지)') +
       card('import', 'map', '지도 캡처로 만들기', '네이버·카카오 지도 화면 그림에서 도로망을 읽어 만듦') + '</div>',
       (edited ? `<button class="btn" data-act="savefile">${icon('download', 14)}작업 파일 저장</button>` : '') + '<button class="btn" data-act="closedlg">취소</button>');
   }
@@ -1712,8 +1713,8 @@
   }
   function helpDlg() {
     ui.dialog('사용법', '<ul class="help">' +
-      '<li><b>대상지</b>는 왼쪽 메뉴의 [대상지]에서 고릅니다. 도시(가상), 구도심(가상), 누를 때마다 새로 만드는 임의생성(가상), 아무것도 없는 빈 대상지, 지도 캡처 그림에서 도로를 읽어 만든 대상지 가운데 하나로 시작합니다.</li>' +
-      '<li><b>실제 지역</b>: [프로젝트] 메뉴나 [대상지]의 [실제 지역 고르기]에서 장소를 찾고 지도를 끌어 가운데 사각형을 대상지에 맞춘 뒤 [대상지 만들기]를 누릅니다. 인증키 없이 공개 지도 자료(Overture Maps·OpenStreetMap)로 건물 윤곽과 도로 중심선(따로 그려진 양방향 차도는 하나로, 원형 교차로는 회전교차로로)을 세우고, 층수·높이 자료가 없는 건물은 용도와 건축면적으로 어림합니다. 브이월드 인증키가 있으면 건물(GIS건물통합정보)의 층수·높이·용도·사용승인일과 지적(연속지적도)으로 세웁니다. 오른쪽 [현황]에서 단색·용도·층수·건축 연도·높이 근거로 칠해 보고, 현황 건물을 눌러 속성을 보거나 지상 층수를 고칩니다. 가구에 건물을 놓거나 용도를 정하면 그 자리의 현황 건물은 철거된 것으로 보고 점선 윤곽만 남깁니다.</li>' +
+      '<li><b>대상지</b>는 왼쪽 메뉴의 [대상지]에서 고릅니다. 도시(가상), 구도심(가상), 누를 때마다 새로 만드는 임의생성(가상), 아무것도 없는 빈 대상지, 지도에서 고른 실제 지역([지도에서 삽입]) 가운데 하나로 시작합니다. 지도 캡처 그림에서 도로를 읽어 만드는 대상지는 [프로젝트 → 새 프로젝트]에 있습니다.</li>' +
+      '<li><b>실제 지역</b>: [대상지]의 [지도에서 삽입](또는 [프로젝트] 메뉴)에서 장소를 찾고 지도를 끌어 가운데 사각형을 대상지에 맞춘 뒤 [대상지 만들기]를 누릅니다. 인증키 없이 공개 지도 자료(Overture Maps·OpenStreetMap)로 건물 윤곽과 도로 중심선(따로 그려진 양방향 차도는 하나로, 원형 교차로는 회전교차로로)을 세우고, 층수·높이 자료가 없는 건물은 용도와 건축면적으로 어림합니다. 브이월드 인증키가 있으면 건물(GIS건물통합정보)의 층수·높이·용도·사용승인일과 지적(연속지적도)으로 세웁니다. 오른쪽 [현황]에서 입면·단색·용도·층수·건축 연도·높이 근거로 칠해 보고, 현황 건물을 눌러 속성을 보거나 지상 층수·입면 유형을 고칩니다. 입면(재료·창·1층·간판·지붕)은 외관 자료가 없어 층수·건축면적·평면 모양·용도·면한 길로 추정해 입힌 것입니다. 가구에 건물을 놓거나 용도를 정하면 그 자리의 현황 건물은 철거된 것으로 보고 점선 윤곽만 남깁니다.</li>' +
       '<li><b>작업 순서·계획 목표</b>: 속성 탭 맨 위의 작업 순서(대상지 → 도로망 → 용도·밀도 → 건축물 → 가로 단면 → 법규 검토)가 끝낸 단계를 표시하고 다음 할 일을 알려 줍니다. 지표 탭의 [계획 목표]에 용적률·건폐율·도로율·공원·녹지율·인구 목표를 넣으면 지금 계획과 견주어 막대로 보여 줍니다(목표는 계획과 함께 저장).</li>' +
       '<li><b>메뉴 막대</b>(왼쪽 위 로고 아래): [프로젝트]에는 새 프로젝트·작업 파일 열기·저장·내보내기·처음 상태로 되돌리기·전체 지우기가, [편집]에는 되돌리기·도구·지우기·빈 가구 채우기가, [보기]에는 화면 배치·크게 보기·표현·레이어·그림자·패널 접기가, [도움말]에는 사용법과 단축키가 있습니다. 처음 상태로 되돌리기와 전체 지우기도 되돌리기(Ctrl+Z)로 다시 살릴 수 있습니다.</li>' +
       '<li><b>왼쪽 메뉴</b>(창이 좁으면 왼쪽의 좁은 띠, 휴대폰은 아래 막대)의 Draw 아래 [도로]·[건물]·[가로시설물]·[조경]을 누르면 세부 항목이 펼쳐집니다. 그 아래 View &amp; Visibility에는 음영분석·3D 오브젝트·레이어와 맨 아래 화면 배치·표현 단추가 있습니다. 도로는 위계를 고른 뒤 평면에 점을 찍어 내고, 건물은 용도를 고른 뒤 획지를 눌러 세우며, 교목·가로등·벤치 등은 고른 뒤 평면이나 3D에 눌러 놓습니다.</li>' +
@@ -1747,7 +1748,7 @@
       '<li><b>AI 렌더</b>: 3D 머리줄의 반짝이 단추(또는 [프로젝트 → 내보내기])로 엽니다. 지금 3D 시점을 참고 그림으로 Google Gemini 이미지 모델(Nano Banana)에 보내, 건물의 위치·높이·매스와 시점은 그대로 두고 재료·빛·하늘·사람을 더한 그림을 받습니다. 사람마다 Google AI Studio에서 받은 API 키를 넣으며(이미지 모델은 API 무료 등급이 없어 결제 연결 필요), 키는 그 브라우저에만 둡니다. 키 없이는 참고 그림을 저장하고 프롬프트를 복사해 Gemini 앱에서 만듭니다. Claude 화면 안에서는 바깥 요청이 막혀 있어 키로 바로 만들기는 배포 페이지나 내려받은 HTML에서 됩니다.</li>' +
       '<li><b>3D 모델 내보내기</b>: [프로젝트 → 3D 모델]에서 GLB(최신 SketchUp·Blender·Rhino 8)·DAE(SketchUp 모든 판)·OBJ(Rhino·3ds Max 등)로 내보냅니다. 건물은 동마다 묶이고, 단위는 m입니다.</li></ul>' +
       '<table class="tb kv"><tbody><tr><td>평면</td><td>빈 곳을 끌어 화면 이동, 휠이나 두 손가락으로 확대·축소</td></tr><tr><td>3D</td><td>끌어서 회전, Shift+끌기나 두 손가락으로 이동, 휠로 확대·축소</td></tr><tr><td>단축키</td><td>V 선택 · M 이동 · E 지우개 · R 도로 · B 건물 · Shift+누름 여럿 고르기 · Delete 지우기 · Ctrl+Z 되돌리기 · Esc 그만</td></tr></tbody></table>' +
-      '<p class="mut">단순화한 부분: 지형과 종단경사가 없고, 획지는 격자로만 나뉘며, 도로는 직선 구간을 이어서 만듭니다. 일조·관로 점검은 학습용 간이 계산입니다. 지도 캡처에서 읽은 도로 폭과 용도는 어림값이므로 만든 뒤 고쳐 쓰세요. 실제 지역의 현황 건물은 바닥 윤곽을 높이만큼 올린 매스이며, 높이 자료가 없으면 층수로 어림합니다.</p>' +
+      '<p class="mut">단순화한 부분: 지형과 종단경사가 없고, 획지는 격자로만 나뉘며, 도로는 직선 구간을 이어서 만듭니다. 일조·관로 점검은 학습용 간이 계산입니다. 지도 캡처에서 읽은 도로 폭과 용도는 어림값이므로 만든 뒤 고쳐 쓰세요. 실제 지역의 현황 건물은 바닥 윤곽을 높이만큼 올린 매스에 추정한 입면을 입힌 것이며, 높이 자료가 없으면 층수로 어림합니다.</p>' +
       '<p class="copy">© 2026 Urban Planning &amp; Informatics Lab, School of Smart Cities, Korea University (Prof. Jooseok Oh). All rights reserved.</p>',
       '<button class="btn pri" data-act="closedlg">닫기</button>');
   }
@@ -2017,7 +2018,7 @@
     resetscene() {
       ui.closePop();
       if (app.isInitial()) { ui.toast('이미 처음 상태입니다.'); return; }
-      if (!app.initialProject()) { ui.toast('이 대상지는 처음 상태가 남아 있지 않습니다. 왼쪽 메뉴 [대상지]에서 지도 캡처나 실제 지역으로 다시 만들 수 있습니다.'); return; }
+      if (!app.initialProject()) { ui.toast('이 대상지는 처음 상태가 남아 있지 않습니다. [대상지 → 지도에서 삽입]이나 [프로젝트 → 새 프로젝트]의 지도 캡처로 다시 만들 수 있습니다.'); return; }
       confirmDlg('처음 상태로 되돌리기', '지금까지 바꾼 내용을 거두고 이 대상지를 처음 열었을 때의 배치로 되돌립니다. 되돌린 뒤에도 되돌리기로 다시 살릴 수 있습니다.', '처음 상태로', () => { if (app.resetProject()) ui.toast(`처음 상태로 되돌렸습니다. ${ui.undoTip()}`); });
     },
     closedlg() { ui.closeDialog(); },

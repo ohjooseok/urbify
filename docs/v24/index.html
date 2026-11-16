@@ -781,12 +781,8 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
 .cxleg i{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25)}
 .cxleg em{font-style:normal;color:var(--mute);margin-left:auto}
 .cxmode{margin:0 12px 6px}
-.cxmode .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));row-gap:1px}
-.cxmode .seg button{padding:0 4px;font-size:12px}
-.facrow{display:flex;align-items:center;gap:8px;margin:2px 12px 4px}
-.facsum{flex:1 1 auto;min-width:0;font-size:12px;line-height:1.45;color:var(--ink)}
-.facrow .btn{flex:none}
-.facrow .btn em{font-style:normal;color:var(--mute);font-variant-numeric:tabular-nums}
+.cxmode .seg{display:flex}
+.cxmode .seg button{flex:1 1 0;padding:0 4px;font-size:12px}
 .chips{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 4px 0 7px;border-radius:11px;background:var(--fill);font-size:11.5px;font-variant-numeric:tabular-nums}
 .chip i{width:11px;height:11px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.3)}
@@ -1059,7 +1055,7 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
 (function (G) {
   'use strict';
   const UDS = (G.UDS = G.UDS || {});
-  UDS.VERSION = 'v25'; // build.py가 VERSION 파일 값과 빌드 날짜로 채운다
+  UDS.VERSION = 'v24.1'; // build.py가 VERSION 파일 값과 빌드 날짜로 채운다
   UDS.BUILD = '2026-11-16';
   const U = (UDS.U = {});
 
@@ -5583,7 +5579,7 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
 
   /* ---------- 표현: 단색 · 용도 · 층수 · 사용승인 경과 연수 ---------- */
   const NOW = new Date().getFullYear();
-  X.MODES = [['fac', '입면'], ['gray', '단색'], ['use', '용도'], ['floor', '층수'], ['age', '건축 연도'], ['est', '높이 근거']];
+  X.MODES = [['gray', '단색'], ['use', '용도'], ['floor', '층수'], ['age', '건축 연도'], ['est', '높이 근거']];
   // 층수·높이를 어디서 얻었나: 자료값 · 일부 어림(층수만/높이만) · 용도·면적으로 어림 · 직접 고침
   const EST_CLS = [['edata', '자료값', '#7FC8B4'], ['epart', '일부 어림', '#FBC193'], ['eguess', '어림(용도·면적)', '#F28076'], ['efix', '직접 고침', '#8FB4E3']];
   X.estKey = (b) => (b.fix ? 'efix' : !b.est ? 'edata' : b.est === 'fl' || b.est === 'h' ? 'epart' : 'eguess');
@@ -5593,7 +5589,6 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
   X.ageOf = (b) => (b.y ? NOW - +b.y.slice(0, 4) : null);
   /* 건물 b의 분류 [키, 이름, 색] */
   X.classOf = function (b, mode) {
-    if (mode === 'fac') { const f = X.facOf(b.id), T = UDS.Fac && UDS.Fac.TYPES, k = f && T && T[f.t] ? f.t : 'house'; return T ? [k, T[k].name, T[k].color] : ['gray', '현황 건물', X.GRAY.fill]; }
     if (mode === 'use') return [b.cat, X.CATS[b.cat].name, catColor(b.cat)];
     if (mode === 'floor') { const k = FLOOR_CLS.findIndex((c) => b.fl <= c[0]); const c = FLOOR_CLS[k]; return ['f' + k, c[1], c[2]]; }
     if (mode === 'est') { const k = X.estKey(b), c = EST_CLS.find((x) => x[0] === k); return [k, c[1], c[2]]; }
@@ -5606,16 +5601,12 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
   };
   /* 범례: 표현 방식별 분류 목록(순서 고정) [키, 이름, 색] */
   X.legend = function (mode) {
-    if (mode === 'fac' && UDS.Fac) return UDS.Fac.ORDER.map((k) => [k, UDS.Fac.TYPES[k].name, UDS.Fac.TYPES[k].color]);
     if (mode === 'use') return ['res', 'com', 'off', 'pub', 'ind', 'none'].map((k) => [k, X.CATS[k].name, catColor(k)]);
     if (mode === 'floor') return FLOOR_CLS.map((c, k) => ['f' + k, c[1], c[2]]);
     if (mode === 'age') return AGE_CLS.map((c, k) => ['a' + k, c[1], c[2]]).concat([['anone', '정보 없음', '#D6D1CA']]);
     if (mode === 'est') return EST_CLS.map((c) => c.slice());
     return [['gray', '현황 건물', X.GRAY.fill]];
   };
-
-  /* 현황 건물의 추정 입면(facade.js). 앱이 없으면(검사 등) null */
-  X.facOf = (id) => { const a = UDS.app, m = a && a.ctxFac ? a.ctxFac() : null; return m ? m.get(id) || null : null; };
 
   /* ---------- 계획과 겹치는 현황 건물: 지운 것(off) · 새 계획으로 철거되는 것(demo) ----------
      용도가 정해진(빈 터가 아닌) 획지 안이나 새로 낸 도로 위에 무게중심이 드는 건물은 철거된 것으로 보고 감춘다 */
@@ -5688,19 +5679,14 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
       });
       if (!best) return;
       const use = X.useOf(best.pc), cat = use.cat, fl = Math.max(1, best.fl);
+      const gH = Math.min(best.h, cat === 'com' || cat === 'off' || cat === 'pub' ? 4.2 : 3.0);
+      const fH = fl > 1 ? U.clamp((best.h - gH) / (fl - 1), 2.5, 6) : 3;
       const setback = Math.max(0, bt - out.W / 2);
-      const fc = X.facOf(best.id), T = UDS.Fac && UDS.Fac.TYPES;
-      if (fc && T) { // 추정 입면: 3D와 같은 재료·창·1층·간판·지붕
-        sd.building = { id: 'ctx:' + best.id, ctxId: best.id, h: best.h, floors: fl, groundH: fc.groundH, floorH: fc.floorH, front: setback, label: `현황 ${T[fc.t].name}`, st: { ...fc.st } };
-      } else {
-        const gH = Math.min(best.h, cat === 'com' || cat === 'off' || cat === 'pub' ? 4.2 : 3.0);
-        const fH = fl > 1 ? U.clamp((best.h - gH) / (fl - 1), 2.5, 6) : 3;
-        sd.building = {
-          id: 'ctx:' + best.id, ctxId: best.id, h: best.h, floors: fl, groundH: gH, floorH: fH, front: setback,
-          label: `현황 ${SHORT[cat] || ''}`.trim(),
-          st: { material: 'concrete', wallColor: '#D8D3CB', wwr: 0.3, win: 'punched', ground: cat === 'com' ? 'shop' : cat === 'res' ? 'residential' : 'lobby', sign: 'none', canopy: false, roof: 'flat' },
-        };
-      }
+      sd.building = {
+        id: 'ctx:' + best.id, ctxId: best.id, h: best.h, floors: fl, groundH: gH, floorH: fH, front: setback,
+        label: `현황 ${SHORT[cat] || ''}`.trim(),
+        st: { material: 'concrete', wallColor: '#D8D3CB', wwr: 0.3, win: 'punched', ground: cat === 'com' ? 'shop' : cat === 'res' ? 'residential' : 'lobby', sign: 'none', canopy: false, roof: 'flat' },
+      };
       sd.setback = setback; sd.h = best.h; sd.ctx = best.id;
     });
   };
@@ -5898,8 +5884,6 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     P.ctx = { id, lat: +o.lat.toFixed(6), lon: +o.lon.toFixed(6), off: [] };
     let nRoads = 0;
-    const rd = []; // 받을 때의 도로망(중심선·폭): 현황 건물이 길에 면했는지 볼 때 쓴다(계획 도로를 고쳐도 그대로)
-    const snap = (pts, w) => { if (pts && pts.length > 1 && w > 0) rd.push({ p: pts.map((q) => [Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10]), w: Math.round(w * 10) / 10 }); };
     if (o.par2 && o.par2.length) o.par2.forEach((q) => par.push(q)); // 이미 대상지 좌표로 된 바탕(철도 부지 등)
     if (o.streets && MI && MI.roadSpec) { // 도로 중심선(공개 지도 자료): 폭·등급으로 단면을 정한다
       const cnt = {}, nm = {};
@@ -5910,7 +5894,6 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         let name = s.name && /[가-힣]/.test(s.name) ? s.name : `${sp.cls} ${cnt[sp.cls]}`;
         if (s.name && nm[name]) name = `${s.name} ${++nm[s.name]}`; else nm[name] = 1; // 같은 이름의 길이 여러 토막이면 번호를 붙인다
         P.roads.push(M.makeRoad(sp.k, s.pts, { ...sp.o, name }));
-        snap(s.pts, s.w);
         nRoads++;
       });
       (o.rabs || []).forEach((rb) => { (P.rabouts = P.rabouts || []).push({ id: U.uid('rb'), p: rb.p.slice(), d: rb.d || null, lanes: null }); });
@@ -5921,13 +5904,11 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         const sp = MI.roadSpec(s.w, false, type);
         cnt[sp.cls] = (cnt[sp.cls] || 0) + 1;
         P.roads.push(M.makeRoad(sp.k, s.pts, { ...sp.o, name: `${sp.cls} ${cnt[sp.cls]}` }));
-        snap(s.pts, s.w);
         nRoads++;
       });
     }
     const data = { id, lat: P.ctx.lat, lon: P.ctx.lon, W: o.W, H: o.H, date, src: o.src || '브이월드 GIS건물통합정보' + (par.length ? '·연속지적도' : ''), bld, par };
     if (o.attr) data.attr = o.attr;
-    if (rd.length) data.rd = rd;
     return { P, data, nRoads };
   };
 
@@ -5960,254 +5941,6 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
       s.async = true; s.src = url;
       document.head.appendChild(s);
     });
-  };
-})(typeof window !== 'undefined' ? window : globalThis);
-</script>
-<script>
-/* Urbify — 현황 건물 입면 추정
- * 받은 자료에는 외관 정보가 거의 없다(공개 지도 자료의 외장 재료·지붕 모양 속성은 조치원 일대에서 거의 비어 있음).
- * 그래서 층수·건축면적·평면 모양·주용도·접한 도로로 건물 유형(7가지)을 정하고, 유형마다 흔한 재료·색·창·1층·간판·지붕 가운데서
- * 건물 식별자의 해시로 하나씩 고른다(같은 자료면 언제나 같은 결과). 유형과 변주 번호는 건물마다 고칠 수 있다(P.ctx.fa: 식별자 → {t, v}).
- * 길에 면했는지는 받을 때의 도로망(현황 자료의 rd)으로 판단한다. 계획 도로를 고쳐도 현황 건물의 얼굴이 바뀌지 않게 */
-(function (G) {
-  'use strict';
-  const UDS = G.UDS, U = UDS.U;
-  const F = (UDS.Fac = {});
-
-  /* 유형: 이름과 평면에 칠하는 색(채도를 낮춰 계획 건물의 용도 색과 섞이지 않게) */
-  F.TYPES = {
-    house: { name: '단독주택', color: '#E6D9C6' },
-    multi: { name: '다세대·다가구', color: '#D5B8AA' },
-    shop: { name: '근린상가', color: '#E5C7A2' },
-    apt: { name: '아파트·연립', color: '#C9D3DB' },
-    office: { name: '업무·상업 빌딩', color: '#A9BCCB' },
-    pub: { name: '공공·교육', color: '#BCD0BF' },
-    shed: { name: '창고·공장', color: '#C8C3BA' },
-  };
-  F.ORDER = ['house', 'multi', 'shop', 'apt', 'office', 'pub', 'shed'];
-
-  // 재료별 벽 색: 밝기·색조를 조금씩 달리한 것
-  const PAL = {
-    brick: ['#b0634b', '#a0563f', '#995c4a', '#bd7a5d', '#8b4f3d', '#b6796a'],
-    tile: ['#ddd3bf', '#cdc1a8', '#e5dbca', '#d5c9b4', '#c7b9a0', '#e0d5c4', '#d9cdb9'],
-    stucco: ['#f1eee8', '#ebe4d5', '#e7e1d7', '#f0e9d8', '#e0dbd1', '#eee5db', '#e4e7e2'],
-    stone: ['#d8d3c8', '#cac3b5', '#e0dace', '#c8c2ba', '#d3cbbd'],
-    concrete: ['#c5c5c7', '#bdbcb8', '#cfceca', '#b8babc'],
-    metal: ['#a3a8af', '#b8b5ad', '#99a3aa', '#c3c0b7', '#8e99a2', '#aeb6a9'],
-    glass: ['#9cb6c8', '#8da8bb', '#a8becc', '#92a7b4'],
-  };
-  const PITCH_COL = ['#5c6167', '#4e6377', '#7c4939', '#6a6e5d', '#895943', '#58606a', '#3f5a6e']; // 경사지붕(기와·슬레이트·금속 기와)
-  const FLAT_COL = ['#cfcecb', '#c8c7c3', '#d7d5d0', '#c4c6c4']; // 평지붕(시멘트·방수 시트)
-  const FLAT_GREEN = ['#8fad94', '#86a68f', '#9ab59c']; // 녹색 방수 도장(오래된 주택·상가 옥상에 흔함)
-
-  /* 유형별로 고르는 몫(가중치): 재료 · 창 · 창 면적비 범위 · 길에 면한 1층 · 간판 · 창 칸 너비 범위(m) · 경사지붕 비율 · 녹색 방수 옥상 비율 · 차양 비율 */
-  const RC = {
-    house: { mat: { stucco: 4, brick: 3, tile: 3 }, win: { punched: 1 }, wwr: [0.18, 0.3], gr: { residential: 1 }, sign: { none: 1 }, bay: [2.8, 3.6], pitch: 0.7, green: 0.45 },
-    multi: { mat: { brick: 5, tile: 3, stucco: 2 }, win: { punched: 1 }, wwr: [0.2, 0.32], gr: { pilotis: 5, residential: 4 }, sign: { none: 1 }, bay: [3.0, 3.6], green: 0.4 },
-    shop: { mat: { tile: 4, stucco: 3, brick: 2, metal: 1 }, win: { punched: 4, ribbon: 1 }, wwr: [0.25, 0.45], gr: { shop: 1 }, sign: { cluttered: 7, regulated: 2, none: 1 }, bay: [3.0, 3.8], green: 0.35, canopy: 0.25 },
-    apt: { mat: { stucco: 6, tile: 2, concrete: 1 }, win: { ribbon: 4, punched: 3 }, wwr: [0.35, 0.5], gr: { residential: 3, pilotis: 1 }, sign: { none: 1 }, bay: [3.2, 3.8] },
-    office: { mat: { glass: 3, stone: 3, metal: 2, tile: 2 }, win: { curtain: 3, vertical: 2, ribbon: 3 }, wwr: [0.45, 0.75], gr: { shop: 3, lobby: 2 }, sign: { regulated: 2, none: 1, cluttered: 1 }, bay: [2.6, 3.4], canopy: 0.3 },
-    pub: { mat: { concrete: 3, stone: 3, brick: 2, tile: 1 }, win: { ribbon: 3, punched: 2, vertical: 1 }, wwr: [0.35, 0.5], gr: { lobby: 1 }, sign: { none: 1 }, bay: [3.2, 4.0] },
-    shed: { mat: { metal: 6, concrete: 3, stucco: 1 }, win: { ribbon: 2, punched: 1 }, wwr: [0.08, 0.16], gr: { closed: 1 }, sign: { none: 1 }, bay: [4.0, 6.0], pitch: 0.35 },
-  };
-  F.RC = RC;
-
-  const pickW = (rnd, w) => {
-    const ks = Object.keys(w).filter((k) => w[k] > 0), tot = ks.reduce((s, k) => s + w[k], 0);
-    let x = rnd() * tot;
-    for (const k of ks) { x -= w[k]; if (x <= 0) return k; }
-    return ks[ks.length - 1];
-  };
-  const pick = (rnd, a) => a[Math.floor(rnd() * a.length) % a.length];
-
-  /* 평면 모양: 가장 큰 부분의 바깥 고리로 최소 외접 사각형(긴 변·짧은 변), 사각형을 채운 비율 */
-  F.shape = function (b) {
-    let big = b.parts[0], bigA = -1;
-    b.parts.forEach((pt) => { const a = Math.abs(U.polyArea(pt.o)); if (a > bigA) { bigA = a; big = pt; } });
-    const mr = U.minRect(big.o);
-    return { pt: big, area: bigA, mr, long: mr ? mr.a : 0, short: mr ? mr.b : 0, el: mr && mr.b > 0.1 ? mr.a / mr.b : 1, fill: mr && mr.area > 0 ? bigA / mr.area : 1 };
-  };
-
-  /* 건물 찾기 격자(가림 판단용) */
-  function gridOf(bld) {
-    const S = 25, g = new Map(), X = UDS.Ctx;
-    bld.forEach((b) => {
-      const bb = X.bb(b);
-      for (let i = Math.floor(bb.minx / S); i <= Math.floor(bb.maxx / S); i++) for (let j = Math.floor(bb.miny / S); j <= Math.floor(bb.maxy / S); j++) {
-        const k = i + ',' + j; let a = g.get(k); if (!a) g.set(k, (a = [])); a.push(b);
-      }
-    });
-    return { hit: (p, self) => { const a = g.get(Math.floor(p[0] / S) + ',' + Math.floor(p[1] / S)); return !!a && a.some((o) => o !== self && X.hit(o, p)); } };
-  }
-
-  /* 길에 면한 변: 바깥 고리의 변 가운데에서 바깥쪽으로 10m 안에 도로 가장자리가 있고, 변과 도로가 대략 나란하며,
-     그 사이를 다른 건물이 가리지 않을 때. 돌려주는 것 [{pi(부분), k(변), W(도로 폭), gap(도로 가장자리까지)}] */
-  F.frontage = function (b, roads, idx) {
-    const out = [];
-    b.parts.forEach((pt, pi) => {
-      const R = pt.o, n = R.length;
-      for (let k = 0; k < n; k++) {
-        const a = R[k], c = R[(k + 1) % n], L = U.dist(a, c);
-        if (L < 1.5) continue;
-        const d = [(c[0] - a[0]) / L, (c[1] - a[1]) / L], no = [d[1], -d[0]]; // 바깥쪽(반시계 고리의 오른쪽)
-        const m = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
-        let best = null;
-        for (const r of roads) {
-          const lim = r.W / 2 + 10;
-          if (m[0] < r.bb.minx - lim || m[0] > r.bb.maxx + lim || m[1] < r.bb.miny - lim || m[1] > r.bb.maxy + lim) continue;
-          for (let i = 0; i + 1 < r.pts.length; i++) {
-            const p = r.pts[i], q = r.pts[i + 1];
-            const ds = U.distPointSeg(m, p, q), gap = ds.d - r.W / 2;
-            if (gap > 10 || (best && gap >= best.gap)) continue;
-            const v = [ds.q[0] - m[0], ds.q[1] - m[1]], lv = Math.hypot(v[0], v[1]);
-            if (lv < 0.05 || (v[0] * no[0] + v[1] * no[1]) / lv < 0.6) continue;
-            const sl = U.dist(p, q);
-            if (sl < 0.05 || Math.abs(((q[0] - p[0]) * d[0] + (q[1] - p[1]) * d[1]) / sl) < 0.5) continue;
-            best = { gap, W: r.W };
-          }
-        }
-        if (!best) continue;
-        const g = Math.max(0, best.gap);
-        if (idx && (idx.hit([m[0] + no[0] * 0.8, m[1] + no[1] * 0.8], b) || (g > 2 && idx.hit([m[0] + no[0] * (0.8 + g / 2), m[1] + no[1] * (0.8 + g / 2)], b)))) continue;
-        out.push({ pi, k, W: U.round(best.W, 1), gap: U.round(g, 1) });
-      }
-    });
-    return out;
-  };
-
-  /* 유형 정하기: 주용도가 있으면 그것과 층수로, 없으면 층수·건축면적·모양·접한 도로 폭으로. 근거(why)를 함께 돌려준다 */
-  F.classify = function (b, fr, sh) {
-    const X = UDS.Ctx, fl = Math.max(1, b.fl || 1), a = b.a > 0 ? b.a : sh.area, pc = String(b.pc || ''), cat = b.cat || 'none';
-    const W = fr.reduce((m, f) => Math.max(m, f.W), 0);
-    const coin = (U.hashStr(b.id + '#t') % 1000) / 1000;
-    const why = [];
-    let t;
-    if (cat !== 'none') why.push(X.useOf(pc).name);
-    if (/^02001/.test(pc)) t = fl >= 5 ? 'apt' : 'multi';
-    else if (/^02/.test(pc)) t = fl >= 6 ? 'apt' : 'multi';
-    else if (/^01/.test(pc)) t = fl <= 2 && !/^01003/.test(pc) ? 'house' : 'multi';
-    else if (cat === 'res') t = fl >= 6 ? 'apt' : fl >= 3 ? 'multi' : 'house';
-    else if (cat === 'com') t = fl >= 6 ? 'office' : 'shop';
-    else if (cat === 'off') t = fl >= 4 || a >= 600 ? 'office' : 'shop';
-    else if (cat === 'pub') t = 'pub';
-    else if (cat === 'ind') t = 'shed';
-    else {
-      why.push('용도 정보 없음');
-      if (fl >= 6) { t = sh.el >= 2.2 && a >= 250 ? 'apt' : 'office'; if (t === 'apt') why.push('길쭉한 판상형'); }
-      else if (fl >= 3) {
-        if (a >= 1000) { t = sh.el >= 2.5 ? 'pub' : 'office'; why.push(t === 'pub' ? '큰 판상형' : '큰 건물'); }
-        else t = W >= 12 ? 'shop' : W >= 8 ? (coin < 0.35 ? 'shop' : 'multi') : 'multi';
-      } else if (a < 18) t = 'shed';
-      else if (a >= 500) t = W >= 12 && a < 1500 ? 'shop' : 'shed';
-      else t = W >= 12 ? 'shop' : W >= 8 && a >= 70 ? (coin < 0.2 ? 'shop' : 'house') : 'house';
-    }
-    why.push(`${fl}층${b.est && !b.fix ? '(어림)' : ''}`, `건축면적 ${U.fmt0 ? U.fmt0(a) : Math.round(a)}㎡`);
-    why.push(W ? `폭 ${Math.round(W)}m 길에 면함` : '길에 면하지 않음');
-    return { t, why };
-  };
-
-  /* 경사지붕을 얹을 사각형: 꼭짓점 넷이면 그대로, 아니면 최소 외접 사각형(반시계). 짧은 변 i0·i0+2에 박공 */
-  function rectOf(sh) {
-    let R;
-    if (sh.pt.o.length === 4) R = sh.pt.o.map((p) => [p[0], p[1]]);
-    else {
-      const Fm = sh.mr.F;
-      R = [[Fm.umin, Fm.vmin], [Fm.umax, Fm.vmin], [Fm.umax, Fm.vmax], [Fm.umin, Fm.vmax]].map(([u, v]) => U.fromFrame(Fm, u, v));
-      if (U.polyArea(R) < 0) R.reverse();
-    }
-    const L = (i) => U.dist(R[i], R[(i + 1) % 4]);
-    const i0 = L(0) + L(2) < L(1) + L(3) ? 0 : 1;
-    return { R, i0, halfD: Math.min(L(i0 + 1), L((i0 + 3) % 4)) / 2, len: Math.min(L(i0), L(i0 + 2)) };
-  }
-
-  /* 입면 하나 만들기: 유형 t, 변주 v. sh: 모양, fr: 길에 면한 변 */
-  F.style = function (b, t, v, sh, fr) {
-    const rc = RC[t] || RC.house, X = UDS.Ctx;
-    const rnd = U.rng(U.hashStr(b.id + '#f' + (v || 0)));
-    // 아파트는 이웃 동끼리 같은 재료·색(120m 칸마다 같은 씨앗): 단지가 한 벌로 보이게
-    const rcol = t === 'apt' ? U.rng(U.hashStr('apt#' + Math.round(b.c[0] / 120) + ',' + Math.round(b.c[1] / 120) + '#' + (v || 0))) : rnd;
-    const age = X.ageOf(b);
-    const mw = { ...rc.mat }, sw = { ...rc.sign };
-    if (age !== null && age >= 30) { ['brick', 'tile'].forEach((k) => { if (mw[k]) mw[k] *= 1.6; }); ['glass', 'metal', 'stone'].forEach((k) => { if (mw[k]) mw[k] *= 0.5; }); }
-    if (age !== null && age < 12) { ['stucco', 'stone', 'metal', 'glass'].forEach((k) => { if (mw[k]) mw[k] *= 1.5; }); ['brick', 'tile'].forEach((k) => { if (mw[k]) mw[k] *= 0.5; }); if (sw.regulated) sw.regulated *= 2.5; }
-    let material = pickW(rcol, mw);
-    let win = pickW(rnd, rc.win);
-    if (win === 'curtain') material = 'glass';
-    if (material === 'glass') win = 'curtain';
-    const wallColor = pick(rcol, PAL[material]);
-    const wwr = win === 'curtain' ? 0.85 : U.round(rc.wwr[0] + rnd() * (rc.wwr[1] - rc.wwr[0]), 2);
-    const ground = pickW(rnd, rc.gr);
-    const sign = pickW(rnd, sw);
-    const canopy = rnd() < (rc.canopy || 0);
-    const bay = win === 'curtain' ? 1.5 : win === 'vertical' ? 1.8 : U.round(rc.bay[0] + rnd() * (rc.bay[1] - rc.bay[0]), 2);
-    const fl = Math.max(1, b.fl || 1), H = Math.max(2.4, b.h || 3);
-    // 지붕: 낮고 작은 집·창고는 경사지붕(사각형에 가까운 평면만), 나머지는 평지붕과 난간벽
-    let pitch = null;
-    const pr = rnd(), pk = rnd(), pc = rnd(), gc = rnd();
-    if (rc.pitch && fl <= 2 && b.parts.length === 1 && !b.parts[0].h.length && sh.mr && sh.area >= 20 && sh.area <= 260 && sh.short >= 3.5 && sh.short <= 14 && (sh.pt.o.length === 4 || sh.fill >= 0.9) && pr < rc.pitch) {
-      const r = rectOf(sh);
-      if (r.halfD >= 1.6 && r.len >= 3) {
-        const rise = Math.min(r.halfD * Math.tan((26 * Math.PI) / 180), 3.2);
-        pitch = { kind: t === 'shed' || pk < 0.55 ? 'gable' : 'hip', R: r.R, i0: r.i0, halfD: r.halfD, rise: U.round(rise, 2), col: PITCH_COL[Math.floor(pc * PITCH_COL.length) % PITCH_COL.length] };
-      }
-    }
-    const par = pitch ? 0 : H < 4.5 ? 0.45 : 0.9;
-    const top = pitch ? Math.max(2.5, H - pitch.rise / 2) : Math.max(2.2, H - par); // 벽 꼭대기(처마 또는 옥상 바닥)
-    // 1층·기준층 높이: 상가·로비는 1층을 높게
-    let gH = fl === 1 ? top : ground === 'shop' || ground === 'lobby' ? 4.0 : ground === 'pilotis' ? 2.7 : 3.0;
-    let fH = fl > 1 ? (top - gH) / (fl - 1) : top;
-    if (fl > 1 && fH < 2.5) { fH = 2.5; gH = Math.max(2.3, top - fH * (fl - 1)); }
-    if (fl > 1 && fH > 4.5) { fH = 4.5; gH = Math.min(8, top - fH * (fl - 1)); }
-    // 길에 면한 변(부분:변). 상가·업무·공공인데 길에 면한 변이 없으면 가장 긴 변을 앞으로
-    const front = new Set(fr.map((f) => f.pi + ':' + f.k));
-    if (!front.size && (t === 'shop' || t === 'office' || t === 'pub')) {
-      let best = null;
-      b.parts.forEach((pt, pi) => pt.o.forEach((p, k) => { const L = U.dist(p, pt.o[(k + 1) % pt.o.length]); if (!best || L > best.L) best = { L, key: pi + ':' + k }; }));
-      if (best) front.add(best.key);
-    }
-    // 경사지붕 사각형의 변 가운데 길에 면한 것: 원래 변과 바깥 방향이 같고 가까운 것
-    if (pitch) {
-      const ring = b.parts[0].o, pf = new Set();
-      for (let i = 0; i < 4; i++) {
-        const a = pitch.R[i], c = pitch.R[(i + 1) % 4], na = U.perpR(U.norm(U.sub(c, a))), m = U.mid(a, c);
-        front.forEach((key) => {
-          const k = +key.split(':')[1], p = ring[k], q = ring[(k + 1) % ring.length];
-          if (!p || !q) return;
-          const nb = U.perpR(U.norm(U.sub(q, p)));
-          if (U.dot(na, nb) > 0.9 && Math.abs(U.dot(U.sub(U.mid(p, q), m), na)) < 2.5) pf.add(i);
-        });
-      }
-      pitch.front = pf;
-    }
-    const greenOK = rc.green && (age === null || age >= 15);
-    const roofColor = pitch ? pitch.col : greenOK && gc < rc.green ? pick(rnd, FLAT_GREEN) : pick(rnd, FLAT_COL);
-    return {
-      t, v: v || 0, H: U.round(H, 2), top: U.round(top, 2), par, groundH: U.round(gH, 2), floorH: U.round(fH, 2), floors: fl, bay, front, pitch,
-      st: { material, wallColor, wwr, win, ground, sign, canopy, roof: pitch ? 'gable' : 'flat', roofColor },
-    };
-  };
-
-  /* 현황 건물 전체: 식별자 → 입면. roads: [{pts, W}] (받을 때의 도로망), fa: 건물마다 고친 유형·변주 */
-  F.compute = function (cx, roads, fa) {
-    const R2 = (roads || []).filter((r) => r.pts && r.pts.length > 1).map((r) => ({ pts: r.pts, W: r.W || 8, bb: U.polyBounds(r.pts) }));
-    const idx = gridOf(cx.bld), out = new Map();
-    cx.bld.forEach((b) => {
-      const sh = F.shape(b), fr = F.frontage(b, R2, idx), auto = F.classify(b, fr, sh);
-      const o = (fa && fa[b.id]) || {};
-      const t = F.TYPES[o.t] ? o.t : auto.t;
-      const d = F.style(b, t, o.v || 0, sh, fr);
-      d.auto = auto.t; d.why = auto.why; d.fixed = !!F.TYPES[o.t]; d.fr = fr;
-      out.set(b.id, d);
-    });
-    return out;
-  };
-
-  /* 한 줄 요약: 재료 · 창 · 1층 · 간판 · 지붕 */
-  F.summary = function (d) {
-    const C = UDS.C, st = d.st;
-    const roof = d.pitch ? (d.pitch.kind === 'hip' ? '모임지붕' : '박공지붕') : st.roofColor && FLAT_GREEN.includes(st.roofColor) ? '평지붕(녹색 방수)' : '평지붕';
-    const gr = d.front.size || st.ground === 'pilotis' ? `1층 ${C.GROUND[st.ground] || ''}` : '';
-    return [C.MATERIALS[st.material] ? C.MATERIALS[st.material].name : st.material, C.WIN[st.win], gr, st.sign !== 'none' && d.front.size ? C.SIGN[st.sign] : '', roof].filter(Boolean).join(' · ');
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -7686,7 +7419,6 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
     if (cx && layers.ctx !== false && D.ctxV) {
       pen.layer('EXISTING', '현황 건물');
       const mode = (o.app.state && o.app.state.ctxMode) || 'gray';
-      const fac = mode === 'fac' && o.app.ctxFac ? o.app.ctxFac() : null;
       cx.bld.forEach((b) => {
         if (D.ctxV.off.has(b.id)) return;
         const rings = [].concat(...b.parts.map((pt) => [pt.o].concat(pt.h)));
@@ -7694,16 +7426,6 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         if (line) { pen.rings(rings, { fill: '#ececec', stroke: '#4a4a4a', lw: 0.75 }); return; }
         const col = mode === 'gray' ? X.GRAY.fill : X.classOf(b, mode)[2];
         pen.rings(rings, { fill: col, stroke: mode === 'gray' ? X.GRAY.edge : U.shade(col, -0.35), lw: 0.75 });
-        // 입면: 경사지붕의 용마루(모임지붕은 추녀마루까지)
-        const f = fac && fac.get(b.id), Pt = f && f.pitch;
-        if (Pt) {
-          const v = (i) => Pt.R[((i % 4) + 4) % 4], R1 = U.mid(v(Pt.i0), v(Pt.i0 + 1)), R2 = U.mid(v(Pt.i0 + 2), v(Pt.i0 + 3)), u = U.norm(U.sub(R2, R1)), sc = U.shade(col, -0.38);
-          if (Pt.kind === 'hip') {
-            const k = Math.min(Pt.halfD, U.dist(R1, R2) / 2), A1 = U.add(R1, U.mul(u, k)), A2 = U.sub(R2, U.mul(u, k));
-            pen.line([A1, A2], { stroke: sc, lw: 0.7 });
-            [[v(Pt.i0), A1], [v(Pt.i0 + 1), A1], [v(Pt.i0 + 2), A2], [v(Pt.i0 + 3), A2]].forEach((sg) => pen.line(sg, { stroke: sc, lw: 0.5 }));
-          } else pen.line([R1, R2], { stroke: sc, lw: 0.7 });
-        }
       });
     }
     // 건물
@@ -8970,12 +8692,8 @@ void main(){
         });
       }
       if (layers.ctx !== false) {
-        const mode = app.state.ctxMode || 'gray', fac = mode === 'fac' && app.ctxFac ? app.ctxFac() : null;
-        cx.bld.forEach((b) => {
-          if (!X.shown(V, b.id)) return;
-          const pk = pick({ type: 'ctx', id: b.id }), f = fac && fac.get(b.id);
-          if (f) this._ctxFacade(b, f, solid, edges, pk); else this._ctxBuilding(b, solid, edges, pk, fac ? 'gray' : mode);
-        });
+        const mode = app.state.ctxMode || 'gray';
+        cx.bld.forEach((b) => { if (X.shown(V, b.id)) this._ctxBuilding(b, solid, edges, pick({ type: 'ctx', id: b.id }), mode); });
       }
     }
     // 수목
@@ -9361,89 +9079,6 @@ void main(){
       });
       this._flatH(solid, this._ctxTri('b:' + b.id, k, pt), H, roof, pk, 2);
     });
-  };
-
-  /* 현황 건물: 추정 입면(facade.js). 설계 건물과 같은 벽 무늬(창·1층·간판·재료)와 난간벽·옥상 물건, 작은 집은 박공·모임지붕 */
-  const WIN_I = ['punched', 'ribbon', 'vertical', 'curtain'], GR_I = ['shop', 'lobby', 'residential', 'pilotis', 'arcade', 'closed'], SG_I = { none: 0, cluttered: 1, regulated: 2 };
-  Rr._ctxWall = function (f, a, c, top, Hp, isFront, solid, edges, pk, col, rnd) {
-    const st = f.st, L = U.dist(a, c), y0 = 0.03;
-    if (L < 0.02) return;
-    const n2 = U.perpR(U.norm(U.sub(c, a)));
-    const matIdx = Math.max(0, C.MAT_ORDER.indexOf(st.material)), winIdx = Math.max(0, WIN_I.indexOf(st.win)), grIdx = Math.max(0, GR_I.indexOf(st.ground)), sgIdx = SG_I[st.sign] || 0;
-    const bay = isFront && st.ground === 'shop' ? Math.max(f.bay, 3.6) : f.bay;
-    const pier = st.win === 'curtain' ? 0.35 : 0.6, span = L - 2 * pier;
-    const nb = span > bay * 0.55 ? Math.max(1, Math.round(span / bay)) : 0, bwE = nb ? span / nb : bay;
-    const gcode = isFront ? grIdx : st.ground === 'pilotis' ? 3 : 6;
-    const s1 = [f.floorH, f.groundH, bwE, st.wwr], s2 = [winIdx + 10 * (nb + 1), gcode, matIdx + (isFront ? sgIdx * 10 : 0), 1];
-    solid.quad(W3(a, y0), W3(c, y0), W3(c, top), W3(a, top), [n2[0], 0, -n2[1]], col, [[-pier, 0], [L - pier, 0], [L - pier, top], [-pier, top]], s1, s2, pk);
-    if (Hp > top + 0.01) solid.quad(W3(a, top), W3(c, top), W3(c, Hp), W3(a, Hp), [n2[0], 0, -n2[1]], col, [[-pier, top], [L - pier, top], [L - pier, Hp], [-pier, Hp]], [f.floorH, f.groundH, bwE, -1], s2, pk);
-    if (!isFront) return;
-    const d = U.norm(U.sub(c, a));
-    if (st.canopy && L > 2 && f.floors > 1) {
-      const P2 = [U.add(a, U.mul(d, 0.3)), U.sub(c, U.mul(d, 0.3)), U.add(U.sub(c, U.mul(d, 0.3)), U.mul(n2, 1.3)), U.add(U.add(a, U.mul(d, 0.3)), U.mul(n2, 1.3))];
-      solid.prism(P2, f.groundH - 0.75, f.groundH - 0.6, '#3d4247', pk);
-      edges.poly2(P2, f.groundH - 0.6, true);
-    }
-    const sh = Math.min(2.6, top - f.groundH - 0.3);
-    if (st.sign === 'cluttered' && L > 3 && sh > 0.8) { // 돌출 간판
-      for (let s = 1.5; s < L - 1; s += 5 + rnd() * 3) {
-        const p = U.add(U.add(a, U.mul(d, s)), U.mul(n2, 0.55));
-        const sc = [[0.85, 0.2, 0.15], [0.98, 0.78, 0.15], [0.15, 0.45, 0.85], [0.2, 0.62, 0.3], [0.92, 0.45, 0.1]][Math.floor(rnd() * 5)];
-        const P2 = solid.box(p[0], p[1], 0.12, 0.9, f.groundH + 0.3, sh, Math.atan2(d[1], d[0]), sc, pk);
-        edges.boxEdges(P2, f.groundH + 0.3, f.groundH + 0.3 + sh);
-      }
-    }
-  };
-  Rr._ctxFacade = function (b, f, solid, edges, pk) {
-    const col = U.hexToRgb(f.st.wallColor), rnd = U.rng(U.hashStr(b.id + '#s')), y0 = 0.03;
-    if (f.pitch) { this._ctxPitched(b, f, solid, edges, pk, col, rnd); return; }
-    const top = f.top, Hp = Math.max(top, f.H), roofCol = U.hexToRgb(f.st.roofColor || '#cfcecb');
-    b.parts.forEach((pt, pi) => {
-      [pt.o].concat(pt.h).forEach((ring, ri) => {
-        const n = ring.length;
-        for (let i = 0; i < n; i++) {
-          const a = ring[i], c = ring[(i + 1) % n];
-          this._ctxWall(f, a, c, top, Hp, ri === 0 && f.front.has(pi + ':' + i), solid, edges, pk, col, rnd);
-          const z = ring[(i - 1 + n) % n], d1 = U.norm(U.sub(a, z)), d2 = U.norm(U.sub(c, a));
-          if (Math.abs(U.cross(d1, d2)) > 0.34 || U.dot(d1, d2) < 0) edges.seg(W3(a, y0), W3(a, Hp));
-        }
-        edges.poly2(ring, y0, true); edges.poly2(ring, Hp, true);
-      });
-      this._flatH(solid, this._ctxTri('b:' + b.id, pi, pt), top, roofCol, pk, 2);
-      if (!pt.h.length && Hp > top + 0.01) this._roofKit({ id: b.id + '#' + pi, st: { roof: 'flat' }, floors: f.floors }, pt.o, top, Hp, col, solid, edges, pk);
-    });
-  };
-  /* 경사지붕(박공·모임): 평면에 가까운 사각형 위에. 처마는 0.45m 내민다 */
-  Rr._ctxPitched = function (b, f, solid, edges, pk, col, rnd) {
-    const P = f.pitch, R = P.R, i0 = P.i0, top = f.top, rise = P.rise, y0 = 0.03;
-    const v = (i) => R[((i % 4) + 4) % 4];
-    for (let i = 0; i < 4; i++) { this._ctxWall(f, v(i), v(i + 1), top, top, P.front.has(i), solid, edges, pk, col, rnd); edges.seg(W3(v(i), y0), W3(v(i), top)); }
-    edges.poly2(R, y0, true); edges.poly2(R, top, true);
-    const R1 = U.mid(v(i0), v(i0 + 1)), R2 = U.mid(v(i0 + 2), v(i0 + 3)), Lr = U.dist(R1, R2), u = U.norm(U.sub(R2, R1)), w = U.perpL(u), Cc = U.mid(R1, R2);
-    const ov = 0.45, slope = rise / Math.max(0.5, P.halfD), yE = top - ov * slope, yR = top + rise;
-    const E = (i) => { const p = v(i), q = U.sub(p, Cc); return U.add(p, U.add(U.mul(u, Math.sign(U.dot(q, u)) * ov), U.mul(w, Math.sign(U.dot(q, w)) * ov))); };
-    let A1, A2; // 용마루 양 끝
-    if (P.kind === 'hip') { const k = Math.min(P.halfD, Lr / 2); A1 = U.add(R1, U.mul(u, k)); A2 = U.sub(R2, U.mul(u, k)); }
-    else { A1 = U.sub(R1, U.mul(u, ov)); A2 = U.add(R2, U.mul(u, ov)); }
-    const rc = U.hexToRgb(P.col || '#5c6167');
-    const nrm = (A, B, Cp) => {
-      const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [Cp[0] - A[0], Cp[1] - A[1], Cp[2] - A[2]];
-      let n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
-      const l = Math.hypot(n[0], n[1], n[2]) || 1; n = n.map((x) => x / l); return n[1] < 0 ? n.map((x) => -x) : n;
-    };
-    const Q1 = W3(A1, yR), Q2 = W3(A2, yR);
-    const side = (pa, pb, ra, rb) => { const a3 = W3(pa, yE), b3 = W3(pb, yE); solid.quad(a3, b3, rb, ra, nrm(a3, b3, ra), rc, null, null, [0, 0, 0, 2], pk); };
-    side(E(i0 + 1), E(i0 + 2), Q1, Q2);
-    side(E(i0 + 3), E(i0), Q2, Q1);
-    if (P.kind === 'hip') {
-      const end = (pa, pb, r) => { const a3 = W3(pa, yE), b3 = W3(pb, yE); solid.tri(a3, b3, r, nrm(a3, b3, r), rc, [0, 0, 0, 2], pk); edges.seg(a3, r); edges.seg(b3, r); };
-      end(E(i0), E(i0 + 1), Q1); end(E(i0 + 2), E(i0 + 3), Q2);
-    } else {
-      const gend = (pa, pb, r) => { const a3 = W3(pa, top), b3 = W3(pb, top), r3 = W3(r, yR), n2 = U.perpR(U.norm(U.sub(pb, pa))); solid.tri(a3, b3, r3, [n2[0], 0, -n2[1]], col, [0, 0, 0, 0], pk); edges.seg(a3, r3); edges.seg(b3, r3); };
-      gend(v(i0), v(i0 + 1), R1); gend(v(i0 + 2), v(i0 + 3), R2);
-    }
-    edges.seg(Q1, Q2);
-    edges.poly2([E(0), E(1), E(2), E(3)], yE, true);
   };
 
   Rr._furniture = function (f, solid, ground, edges, pk) {
@@ -9896,7 +9531,6 @@ void main(){
     close: 'M6 6l12 12M18 6L6 18',
     check: 'M5 12.6l4.4 4.4L19 7.4',
     reset: 'M5.2 12a6.8 6.8 0 106.8-6.8H8.4M10.8 2.6L8 5.2l2.8 2.6',
-    shuffle: 'M4 7.4h3.6c2.2 0 3.4 1.2 4.4 3.2l1 2.2c1 2 2.2 3.2 4.4 3.2H20M4 16h3.6c1.4 0 2.4-.5 3.2-1.4M13.2 8.8c.8-.9 1.8-1.4 3.2-1.4H20M17.4 4.8L20 7.4l-2.6 2.6M17.4 13.4L20 16l-2.6 2.6',
     more: 'M5.4 12h.2M12 12h.2M18.6 12h.2',
     panel: 'M4.4 5h15.2v14H4.4zM14.6 5v14',
     copy: 'M8.6 8.6h10.8v10.8H8.6zM5 15.4V5h10.4',
@@ -11643,7 +11277,7 @@ void main(){
           if (st2.roof === 'green') { grect(bx0, yTop - 0.28 * sc, bw, 0.28 * sc); gpaint('#9CCBB4', 1); }
           else if (st2.roof === 'gable') {
             const roofPath = () => { g.beginPath(); g.moveTo(xFace - dir * 0.4 * sc, yTop); g.lineTo(xFace + dir * 4.6 * sc, yTop - 2.3 * sc); g.lineTo(xEnd, yTop - 2.3 * sc); g.lineTo(xEnd, yTop); g.closePath(); };
-            roofPath(); gpaint(st2.roofColor || (st2.material === 'metal' ? '#8799ab' : '#a5614b'), 1.2);
+            roofPath(); gpaint(st2.material === 'metal' ? '#8799ab' : '#a5614b', 1.2);
             if (!line) { // 기와(골판) 줄과 처마 그늘
               g.save(); roofPath(); g.clip();
               const step = (st2.material === 'metal' ? 0.45 : 0.3) * sc;
@@ -14181,7 +13815,7 @@ void main(){
       secShow: { text: true, dim: true, util: true }, // 가로 단면에 얹는 정보: 텍스트(모든 글자) · 치수 · 지하시설물
       max: null, // 크게 보는 화면: '2d' | '3d' | 'sec' | null
       layers: { buildings: true, trees: true, furniture: true, utilities: false, shadows: false, labels: true, underlay: true, ctx: true, parcels: true },
-      ctxMode: 'fac', // 현황 건물 표현: 'fac' 입면(추정) · 'gray' 단색 · 'use' 용도 · 'floor' 층수 · 'age' 건축 연도 · 'est' 높이 근거
+      ctxMode: 'gray', // 현황 건물 표현: 'gray' 단색 · 'use' 용도 · 'floor' 층수 · 'age' 건축 연도
       under3d: true, drawRoad: null, snap: null, tab: 'props', view: 'split', mview: '2d', sheet: false,
       traffic: { on: false, ped: 0.4, car: 0.4, pm: true, pmd: 0.4 }, // 3D의 사람·차량(처음에는 꺼짐)과 밀도. pm: 자전거도로의 자전거·킥보드(개인형 이동장치)
       ana: { sunpath: false, sunhours: false, lux: false }, // 음영분석의 조도분석: 태양 궤적도 · 일조시간 · 가로등 조도
@@ -14243,7 +13877,6 @@ void main(){
       }),
       par: hasSh ? (cx.par || []).map((q) => ({ ...q, parts: parts(q.parts) })) : cx.par,
     };
-    if (hasSh && cx.rd) data.rd = cx.rd.map((r) => ({ ...r, p: r.p.map(mv) }));
     this._ctxSh = { src: cx, k, fx, data };
     return data;
   };
@@ -14253,35 +13886,6 @@ void main(){
     const fx = { ...(P.ctx.fl || {}) };
     if (n > 0) fx[id] = U.clamp(Math.round(n), 1, 90); else delete fx[id];
     P.ctx.fl = fx;
-    this.commit();
-    return true;
-  };
-  /* 현황 건물의 추정 입면(식별자 → 입면). 길에 면했는지는 받을 때의 도로망(cx.rd)으로, 없으면(v24까지 만든 대상지) 지금 도로로 본다.
-     건물마다 고친 유형·변주(P.ctx.fa)를 따른다. 자료·도로·고친 값이 같으면 다시 셈하지 않는다 */
-  app.ctxFac = function () {
-    const cx = this.ctxData(), Fc = UDS.Fac; if (!cx || !Fc) return null;
-    const P = this.P, D = this.D;
-    let roads = null, sig = '';
-    if (cx.rd) roads = cx.rd.map((r) => ({ pts: r.p, W: r.w }));
-    else if (D && D.roadInfo) {
-      roads = [];
-      P.roads.forEach((r) => { const inf = D.roadInfo.get(r.id); if (!inf || r.pts.length < 2) return; roads.push({ pts: r.pts, W: inf.lay.W }); sig += inf.lay.W + ':' + r.pts.map((q) => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ') + '|'; });
-    } else return null;
-    const fa = (P.ctx && P.ctx.fa) || null, fk = fa ? JSON.stringify(fa) : '';
-    const m = this._facM;
-    if (m && m.cx === cx && m.sig === sig && m.fk === fk) return m.map;
-    const map = Fc.compute(cx, roads, fa);
-    this._facM = { cx, sig, fk, map };
-    return map;
-  };
-  /* 현황 건물의 입면 유형·변주 고치기(t: 유형 키 또는 ''(자동), v: 변주 번호) */
-  app.ctxSetFac = function (id, o) {
-    const P = this.P; if (!P.ctx || !this.ctxBld(id)) return false;
-    const fa = { ...(P.ctx.fa || {}) }, cur = { ...(fa[id] || {}) };
-    if ('t' in o) { if (o.t && UDS.Fac && UDS.Fac.TYPES[o.t]) cur.t = o.t; else delete cur.t; }
-    if ('v' in o) { if (o.v > 0) cur.v = Math.round(o.v); else delete cur.v; }
-    if (Object.keys(cur).length) fa[id] = cur; else delete fa[id];
-    P.ctx.fa = fa;
     this.commit();
     return true;
   };
@@ -17309,7 +16913,7 @@ void main(){
       (S.off ? `<br>지운 현황 건물 ${trim(S.off, 0)}동 <button class="btn sm quiet" data-act="ctxrestore">모두 되살리기</button>` : '') + '</p>';
     h += `<div class="cxmode"><div class="seg" role="group" aria-label="현황 건물 표현">${X.MODES.map(([k, n]) => `<button data-act="ctxmode" data-arg="${k}" aria-pressed="${mode === k}"${line ? ' disabled' : ''}>${n}</button>`).join('')}</div></div>`;
     if (mode !== 'gray' && !line) h += `<div class="cxleg">${X.legend(mode).map(([k, n, c]) => `<span><i style="background:${swc(c)}"></i>${n}<em>${trim(S.cls[k] || 0, 0)}</em></span>`).join('')}</div>`;
-    h += `<p class="lead tip">${esc(cx.src)} · 중심 ${cx.lat.toFixed(5)}, ${cx.lon.toFixed(5)}.${S.est ? ` 높이·층수 정보가 없는 ${trim(S.est, 0)}동은 어림값으로 세웠습니다(건물을 눌러 층수를 고칠 수 있음, 표현 '높이 근거'로 확인).` : ''} 지형(경사)은 반영하지 않습니다.${mode === 'fac' ? ' 입면(재료·창·1층·간판·지붕)은 층수·건축면적·평면 모양·용도·면한 길로 추정한 것입니다(건물을 눌러 유형·변주를 고칠 수 있음).' : ''}${cx.attr ? ` 자료 ${esc(cx.attr)}.` : ''}</p>`;
+    h += `<p class="lead tip">${esc(cx.src)} · 중심 ${cx.lat.toFixed(5)}, ${cx.lon.toFixed(5)}.${S.est ? ` 높이·층수 정보가 없는 ${trim(S.est, 0)}동은 어림값으로 세웠습니다(건물을 눌러 층수를 고칠 수 있음, 표현 '높이 근거'로 확인).` : ''} 지형(경사)은 반영하지 않습니다.${cx.attr ? ` 자료 ${esc(cx.attr)}.` : ''}</p>`;
     return h;
   }
   /* 현황 건물 하나: 건축물대장 속성. 바꿀 수는 없고 지울(철거할) 수 있다 */
@@ -17340,21 +16944,7 @@ void main(){
     h += f.head('지상 층수 고치기', b.fix ? `<button class="btn sm" data-act="ctxfl" data-arg="${esc(b.id)}|0">${icon('reset', 13)}받은 값 ${raw.fl}층으로</button>` : '') +
       f.num('지상 층수', b.fl, (v) => { const P = app.P; if (!P.ctx) return false; const fx = { ...(P.ctx.fl || {}) }; if (v > 0 && v !== raw.fl) fx[b.id] = v; else delete fx[b.id]; P.ctx.fl = fx; }, { min: 1, max: 90, int: true, unit: '층', note: '답사·거리뷰로 확인한 층수를 넣으면 높이(층수×용도별 층고)도 함께 바뀝니다.' });
     if (b.est && !b.fix) h += `<p class="lead tip">${b.est === 'all' ? '층수·높이 정보가 없어 1층으로 세웠습니다.' : b.est === 'g' ? '층수·높이 자료가 없어 용도와 건축면적으로 층수를 어림했습니다. 실제와 다르면 위에서 고치세요.' : b.est === 'fl' ? '지상 층수 정보가 없어 연면적÷건축면적(또는 높이)으로 층수를 어림했습니다.' : '높이 정보가 없어 층수×층고로 높이를 어림했습니다.'}</p>`;
-    h += ctxFacHTML(f, b);
     if (cx) h += `<p class="lead tip">자료: ${esc(cx.src)} (${esc(cx.date)} 받음)</p>`;
-    return h;
-  }
-  /* 현황 건물의 추정 입면: 유형 고르기 · 다른 변주 · 요약 · 근거 */
-  function ctxFacHTML(f, b) {
-    const Fc = UDS.Fac, map = app.ctxFac ? app.ctxFac() : null, d = map && map.get(b.id);
-    if (!Fc || !d) return '';
-    const ov = (app.P.ctx && app.P.ctx.fa && app.P.ctx.fa[b.id]) || {};
-    let h = f.head('입면 (추정)' + tipI('외관 자료가 없어 층수·건축면적·평면 모양·주용도·받을 때 면한 길로 건물 유형을 정하고, 유형마다 흔한 재료·색·창·1층·간판·지붕 가운데 하나를 골라 입혔습니다. 유형을 바꾸거나 다른 변주를 고를 수 있습니다(되돌리기·저장 따름). 3D 표현이 [입면]일 때 보입니다.'),
-      ov.t || ov.v ? `<button class="btn sm" data-act="ctxfareset" data-arg="${esc(b.id)}">${icon('reset', 13)}자동으로</button>` : '');
-    h += f.sel('입면 유형', ov.t || '', (v) => { const P = app.P; if (!P.ctx) return false; const fa = { ...(P.ctx.fa || {}) }, cur = { ...(fa[b.id] || {}) }; if (v) cur.t = v; else delete cur.t; if (Object.keys(cur).length) fa[b.id] = cur; else delete fa[b.id]; P.ctx.fa = fa; },
-      [['', `자동 · ${Fc.TYPES[d.auto].name}`]].concat(Fc.ORDER.map((k) => [k, Fc.TYPES[k].name])));
-    h += `<div class="facrow"><span class="facsum">${esc(Fc.summary(d))}</span><button class="btn sm" data-act="ctxvar" data-arg="${esc(b.id)}" title="같은 유형에서 재료·색·창·간판을 다시 고릅니다">${icon('shuffle', 13)}다른 변주${d.v ? ` <em>${d.v + 1}</em>` : ''}</button></div>`;
-    h += `<p class="lead tip">근거: ${esc(d.why.join(' · '))} → ${esc(Fc.TYPES[d.auto].name)}${d.fixed ? ` (직접 고침: ${esc(Fc.TYPES[d.t].name)})` : ''}</p>`;
     return h;
   }
 
@@ -18442,8 +18032,6 @@ void main(){
       ui.toast(step[2]);
     },
     ctxdel(a) { app.eraseAt({ type: 'ctx', id: a }); ui.toast(`현황 건물을 지웠습니다. ${ui.undoTip()}`); },
-    ctxvar(a) { const fa = (app.P.ctx && app.P.ctx.fa) || {}, cur = fa[a] || {}; app.ctxSetFac(a, { v: (cur.v || 0) + 1 }); },
-    ctxfareset(a) { if (app.ctxSetFac(a, { t: '', v: 0 })) ui.toast('입면을 자동으로 정한 것으로 되돌렸습니다.'); },
     ctxfl(a) { const [id, n] = String(a).split('|'); if (app.ctxSetFloors(id, +n || 0)) ui.toast(+n ? `지상 ${+n}층으로 고쳤습니다.` : '받은 자료의 층수로 되돌렸습니다.'); },
     rabdel() { const t = app.state.sel; if (t && t.type === 'rab') { app.eraseAt(t); ui.toast(`회전교차로를 지웠습니다. ${ui.undoTip()}`); } },
     treedel() { const t = app.state.sel; if (t && t.type === 'tree') { app.eraseAt(t); ui.toast(`나무를 지웠습니다. ${ui.undoTip()}`); } },
@@ -19380,7 +18968,7 @@ void main(){
   const SRC_NAME = { ovt: '공개 지도 자료', vw: '브이월드', class: '수업 대상지 자료' };
 
   const st = {
-    lat: 36.6012, lon: 127.2975, z: 16, W: 500, H: 500, src: 'ovt', type: 'oldtown', service: true, rail: true, fac: true,
+    lat: 36.6012, lon: 127.2975, z: 16, W: 500, H: 500, src: 'ovt', type: 'oldtown', service: true, rail: true,
     key: '', domain: '', name: '', nameAt: null,
     busy: false, err: '', note: '', step: '', pv: null, pvKey: '', sites: null, bundle: null,
   };
@@ -19394,13 +18982,12 @@ void main(){
     if (o.type && MI && MI.TYPES[o.type]) st.type = o.type;
     if (o.service === false) st.service = false;
     if (o.rail === false) st.rail = false;
-    if (o.fac === false) st.fac = false;
     const v = JSON.parse(localStorage.getItem(LS_VW) || '{}');
     st.key = v.key || ''; st.domain = v.domain || '';
   } catch (e) { /* 저장 공간을 쓸 수 없는 환경 */ }
   const remember = () => {
     try {
-      localStorage.setItem(LS, JSON.stringify({ lat: U.round(st.lat, 6), lon: U.round(st.lon, 6), z: U.round(st.z, 2), W: st.W, H: st.H, src: st.src, type: st.type, service: st.service, rail: st.rail, fac: st.fac }));
+      localStorage.setItem(LS, JSON.stringify({ lat: U.round(st.lat, 6), lon: U.round(st.lon, 6), z: U.round(st.z, 2), W: st.W, H: st.H, src: st.src, type: st.type, service: st.service, rail: st.rail }));
       const v = JSON.parse(localStorage.getItem(LS_VW) || '{}');
       localStorage.setItem(LS_VW, JSON.stringify({ ...v, key: st.key, domain: st.domain }));
     } catch (e) { /* 무시 */ }
@@ -19511,10 +19098,6 @@ void main(){
           <label class="sw"><input type="checkbox" id="spSvc"${st.service ? ' checked' : ''}><span>골목·서비스 도로 포함</span></label>
           <label class="sw"><input type="checkbox" id="spRail"${st.rail ? ' checked' : ''}><span>철도 부지 표시</span></label>
         </section>
-        <section class="sps">
-          <h4>현황 건물</h4>
-          <label class="sw"><input type="checkbox" id="spFac"${st.fac ? ' checked' : ''}><span>입면 추정(층수·크기·모양으로 재료·창·간판·지붕)</span></label>
-        </section>
         <section class="spst" id="spSt" aria-live="polite"></section>
       </div>
     </div>`;
@@ -19555,7 +19138,6 @@ void main(){
     on('spDom', 'input', (e) => { st.domain = e.target.value.trim(); remember(); });
     on('spType', 'change', (e) => { st.type = e.target.value; remember(); if (st.pv) { renderPreview(); syncStatus(); } });
     on('spSvc', 'change', (e) => { st.service = e.target.checked; remember(); st.pvKey = ''; schedule(0); });
-    on('spFac', 'change', (e) => { st.fac = e.target.checked; remember(); });
     on('spRail', 'change', (e) => { st.rail = e.target.checked; remember(); if (st.pv) { renderPreview(); syncStatus(); } });
     on('spGo', 'click', build);
     on('spPaste', 'click', () => { ui.closeDialog(); if (ui.realDialog) ui.realDialog(); });
@@ -19851,7 +19433,6 @@ void main(){
       res.P.meta.title = nm ? `${nm} 일대` : `실제 지역 ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
       st.busy = false; st.step = '';
       ui.closeDialog();
-      app.state.ctxMode = st.fac ? 'fac' : 'gray'; // 현황 건물 표현: 입면 추정 또는 매스(단색)
       app.load(res.P, { ctx: res.data });
       const est = res.data.bld.filter((b) => b.est).length;
       const npar = res.data.par.filter((q) => !/^rail/.test(q.id)).length; // 철도 부지 띠는 필지가 아님

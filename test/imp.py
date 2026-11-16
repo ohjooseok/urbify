@@ -18,11 +18,12 @@ async def main(mobile=False):
         await pg.wait_for_timeout(900)
         ev = pg.evaluate
         tag = 'm' if mobile else 'd'
-        if mobile:
-            await pg.locator('[data-act="palgrp"][data-arg="site"]').tap(); await pg.wait_for_timeout(300)
-            await pg.locator('#pop button[data-scene="import"]').tap()
-        else:
-            await pg.click('button[data-scene="import"]')
+        # 지도 캡처는 [프로젝트 → 새 프로젝트]에서(계획 패널의 대상지 목록에서는 뺐다)
+        await ev("document.querySelector('.mb[data-act=\"menu\"][data-arg=\"project\"]').click()")
+        await pg.wait_for_timeout(250)
+        await ev("document.querySelector('#pop [data-act=\"newproject\"]').click()")
+        await pg.wait_for_timeout(250)
+        await ev("document.querySelector('[data-new=\"import\"]').click()")
         await pg.wait_for_timeout(300)
         await pg.screenshot(path=f"{OUTD}/imp_{tag}0.png")
         await pg.set_input_files('#impFile', str(pathlib.Path(TESTD, 'maps', 'phone.png')))

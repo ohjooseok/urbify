@@ -493,8 +493,8 @@
     }
     // 태양 궤적도
     if (st.ana && st.ana.sunpath) this.drawSunPath(pen, line);
-    // 막다른 도로 표시
-    D.deadEnds.forEach((d) => pen.circle(d.p, 7, { rpx: true, stroke: COL.erase, lw: 2 }));
+    // 막다른 도로 끝: [법규검토] 탭을 볼 때만 평면에 표시(평소에는 목록에만)
+    if (st.tab === 'checks') D.deadEnds.forEach((d) => pen.circle(d.p, 7, { rpx: true, stroke: COL.erase, lw: 2 }));
     // 회전교차로 도구: 둘 수 있는 교차점
     if (st.tool === 'rabout') (D.rabCand || []).forEach((c) => {
       if (c.blocked) { pen.circle(c.p, 7, { rpx: true, stroke: line ? '#777' : '#A49D95', lw: 1.5, dash: [3, 3] }); return; } // 이웃 회전교차로와 겹쳐 둘 수 없는 곳
