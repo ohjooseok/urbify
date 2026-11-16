@@ -166,7 +166,7 @@
       `<nav class="mbar" aria-label="메뉴">${MENUS.map(([k, n]) => `<button class="mb" data-act="menu" data-arg="${k}" aria-haspopup="menu" aria-expanded="false">${n}</button>`).join('')}</nav></div>`;
     // 되돌리기·다시 하기(넓은 화면) + 도구 셋
     h += '<div class="ptools" role="group" aria-label="도구">' +
-      `<span class="ur"><button class="tl ub" data-act="undo" data-tip="되돌리기 (Ctrl+Z)" aria-label="되돌리기">${picto('undo', 30)}</button><button class="tl rb" data-act="redo" data-tip="다시 하기 (Ctrl+Shift+Z)" aria-label="다시 하기">${picto('redo', 30)}</button></span>` +
+      `<span class="ur"><button class="tl ub" data-act="undo" data-tip="되돌리기 (${KEYMOD}Z)" aria-label="되돌리기">${picto('undo', 30)}<span>되돌리기</span></button><button class="tl rb" data-act="redo" data-tip="다시 하기 (${KEYMOD}Shift+Z)" aria-label="다시 하기">${picto('redo', 30)}<span>다시 하기</span></button></span>` +
       tool('select', 'select', '선택', 'V') + tool('move', 'move', '이동', 'M') + tool('erase', 'erase', '지우개', 'E') + '</div>';
     h += '<div class="pscroll">';
     h += '<div class="psec" role="heading" aria-level="2">계획</div>'; // 대상지~조경: 그리고 놓는 메뉴

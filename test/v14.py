@@ -27,8 +27,8 @@ async def main():
         u = await ev("""()=>{const q=(s)=>document.querySelector(s); const vis=[...document.querySelectorAll('.ptools .tl')].filter(b=>b.getBoundingClientRect().width>0); const tl=vis.map(b=>Math.round(b.getBoundingClientRect().width)); const xs=vis.map(b=>b.getBoundingClientRect().left); const ub=q('#btnUndo').getBoundingClientRect(), rb=q('#btnRedo').getBoundingClientRect();
           const gaps=xs.slice(1).map((x,i)=>Math.round(x-xs[i]));
           return {tl, gaps, ur:[Math.round(ub.width), Math.round(rb.width), Math.round(ub.top)], brand:q('.pbrand b').innerText, title:document.title, blank:[...document.querySelectorAll('[data-scene="blank"]')].map(b=>b.innerText).join('|'), pnote:!!q('#palette .pnote'), pal:Math.round(q('#palette').getBoundingClientRect().width), side:Math.round(q('.side').getBoundingClientRect().width)}}""")
-        check(len(u['tl'])==3 and len(set(u['tl']))==1 and u['ur'][0]==u['ur'][1]>0 and u['ur'][2]<50, f"tools same size; undo/redo in the top bar {u['tl']} {u['ur']}")
-        check(max(u['gaps'])-min(u['gaps'])<=1, f"tool buttons evenly spaced {u['gaps']}")
+        check(len(u['tl'])==5 and len(set(u['tl']))==1 and u['ur'][0]==u['ur'][1]==0, f"undo/redo back in the tool row before select·move·erase, all same size; none in the top bar {u['tl']} {u['ur']}")
+        check(max(u['gaps'][2:])-min(u['gaps'][2:])<=1 and u['gaps'][0]>0, f"tool buttons evenly spaced {u['gaps']}")
         check(u['brand']=='Urbify' and '\n' not in u['brand'] and u['title']=='Urbify', f"title one line {u['brand']!r} / {u['title']!r}")
         check('직접 그림' not in u['blank'] and not u['pnote'], f"blank note and bottom note removed {u['blank']!r}")
         check(u['pal']>=250 and u['side']<=320, f"left menu wider, right narrower {u['pal']} / {u['side']}")
