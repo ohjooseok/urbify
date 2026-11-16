@@ -65,15 +65,37 @@
   app.ctxData = function () {
     const P = this.P, cx = this.ctx;
     if (!(P && P.ctx && cx && cx.id === P.ctx.id)) return null;
-    // 대상지를 서·남쪽으로 넓히면 계획 좌표가 통째로 밀린다(P.shift). 현황 자료는 받은 그대로 두고 밀린 사본을 쓴다
-    const sh = P.shift; if (!sh || (!sh[0] && !sh[1])) return cx;
-    const k = sh[0] + ',' + sh[1];
-    if (this._ctxSh && this._ctxSh.src === cx && this._ctxSh.k === k) return this._ctxSh.data;
+    // 대상지를 서·남쪽으로 넓히면 계획 좌표가 통째로 밀린다(P.shift). 현황 자료는 받은 그대로 두고 밀린 사본을 쓴다.
+    // 층수를 고친 현황 건물(P.ctx.fl: 식별자 → 지상 층수)도 사본에 담는다(고친 것은 계획에 남아 되돌리기를 따른다)
+    const sh = P.shift, hasSh = !!(sh && (sh[0] || sh[1]));
+    const fx = P.ctx.fl, hasFx = !!(fx && typeof fx === 'object' && Object.keys(fx).length);
+    if (!hasSh && !hasFx) return cx;
+    const k = hasSh ? sh[0] + ',' + sh[1] : '';
+    if (this._ctxSh && this._ctxSh.src === cx && this._ctxSh.k === k && this._ctxSh.fx === fx) return this._ctxSh.data;
     const mv = (p) => [U.round(p[0] + sh[0], 2), U.round(p[1] + sh[1], 2)];
     const parts = (ps) => ps.map((pt) => ({ o: pt.o.map(mv), h: (pt.h || []).map((r) => r.map(mv)) }));
-    const data = { ...cx, bld: cx.bld.map((b) => ({ ...b, parts: parts(b.parts), c: mv(b.c) })), par: (cx.par || []).map((q) => ({ ...q, parts: parts(q.parts) })) };
-    this._ctxSh = { src: cx, k, data };
+    const X = UDS.Ctx;
+    const data = {
+      ...cx,
+      bld: cx.bld.map((b) => {
+        let o = hasSh ? { ...b, parts: parts(b.parts), c: mv(b.c) } : b;
+        const f = hasFx ? +fx[b.id] : 0;
+        if (f > 0) { if (o === b) o = { ...b }; o.fl = f; o.h = X.hOf(b.cat, f); o.fix = 1; }
+        return o;
+      }),
+      par: hasSh ? (cx.par || []).map((q) => ({ ...q, parts: parts(q.parts) })) : cx.par,
+    };
+    this._ctxSh = { src: cx, k, fx, data };
     return data;
+  };
+  /* 현황 건물의 지상 층수 고치기(n이 0이면 받은 값으로 되돌림) */
+  app.ctxSetFloors = function (id, n) {
+    const P = this.P; if (!P.ctx || !this.ctx || !this.ctx.bld.some((b) => b.id === id)) return false;
+    const fx = { ...(P.ctx.fl || {}) };
+    if (n > 0) fx[id] = U.clamp(Math.round(n), 1, 90); else delete fx[id];
+    P.ctx.fl = fx;
+    this.commit();
+    return true;
   };
   app.ctxBld = function (id) {
     const cx = this.ctxData(); if (!cx) return null;
@@ -82,8 +104,33 @@
   };
   /* 지금 보이는(지우거나 계획으로 철거되지 않은) 현황 건물인가 */
   app.ctxShown = function (id) { const V = this.D && this.D.ctxV; return !!V && UDS.Ctx.shown(V, id); };
+  /* 큰 자료(현황 건물·필지)는 브라우저의 IndexedDB에 둔다. localStorage는 5MB 안팎이라 실제 지역 자료가 크면 계획 저장까지 막을 수 있다 */
+  const IDB = (() => {
+    let p = null;
+    const open = () => p || (p = new Promise((res, rej) => {
+      try {
+        if (typeof indexedDB === 'undefined') throw new Error('no idb');
+        const r = indexedDB.open('urbify', 1);
+        r.onupgradeneeded = () => { r.result.createObjectStore('kv'); };
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('blocked'));
+      } catch (e) { rej(e); }
+    }));
+    const tx = (mode, fn) => open().then((db) => new Promise((res, rej) => {
+      const t = db.transaction('kv', mode), q = fn(t.objectStore('kv'));
+      t.oncomplete = () => res(q ? q.result : undefined); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    }));
+    return { ok: typeof indexedDB !== 'undefined', get: (k) => tx('readonly', (st) => st.get(k)), put: (k, v) => tx('readwrite', (st) => st.put(v, k)), del: (k) => tx('readwrite', (st) => st.delete(k)) };
+  })();
+  app.idb = IDB;
   app.saveCtx = function () {
-    try { if (this.ctx) localStorage.setItem(LS_CTX, JSON.stringify(this.ctx)); else localStorage.removeItem(LS_CTX); return true; } catch (e) { return false; }
+    const cx = this.ctx;
+    let ok = false;
+    try {
+      const raw = cx ? JSON.stringify(cx) : '';
+      if (cx && (raw.length < 1.5e6 || !IDB.ok)) { localStorage.setItem(LS_CTX, raw); ok = true; } else localStorage.removeItem(LS_CTX);
+    } catch (e) { try { localStorage.removeItem(LS_CTX); } catch (e2) { /* 무시 */ } }
+    if (IDB.ok) { (cx ? IDB.put('ctx', cx) : IDB.del('ctx')).catch(() => { if (cx && !ok) this._ctxSaved = false; }); return true; }
+    return ok || !cx;
   };
   app.restoreCtx = function (id) {
     try { const raw = localStorage.getItem(LS_CTX); if (!raw) return null; const cx = JSON.parse(raw); return cx && cx.id === id && Array.isArray(cx.bld) ? cx : null; } catch (e) { return null; }
@@ -2133,7 +2180,17 @@
     const savedCtx = saved && saved.ctx ? this.restoreCtx(saved.ctx.id) : null;
     this.matImg = this.restoreMat();
     this.load(saved || M.scenes.standard.make(), saved ? { save: false, initial: this.restoreInitial(saved), ctx: savedCtx } : { save: false });
-    if (saved) UDS.ui.toast(saved.ctx && !savedCtx ? '이전 작업을 이어서 엽니다. 현황 건물 자료는 이 브라우저에 남아 있지 않아 보이지 않습니다(작업 파일로 저장해 두면 함께 열립니다).' : '이 브라우저에 저장된 이전 작업을 이어서 엽니다.');
+    const lost = '이전 작업을 이어서 엽니다. 현황 건물 자료는 이 브라우저에 남아 있지 않아 보이지 않습니다(작업 파일로 저장해 두면 함께 열립니다).';
+    if (saved && saved.ctx && !savedCtx && IDB.ok) { // 큰 현황 자료는 IndexedDB에서 꺼낸다(비동기)
+      UDS.ui.toast('이 브라우저에 저장된 이전 작업을 이어서 엽니다. 현황 건물 자료를 읽는 중…');
+      IDB.get('ctx').then((cx) => {
+        if (cx && Array.isArray(cx.bld) && this.P && this.P.ctx && cx.id === this.P.ctx.id && !this.ctx) {
+          this.ctx = cx; this._ctxIdx = null; this._ctxSh = null;
+          this.derive(true); this.refresh();
+          UDS.ui.toast('이 브라우저에 저장된 이전 작업을 이어서 엽니다.');
+        } else if (!this.ctx) UDS.ui.toast(lost);
+      }).catch(() => { if (!this.ctx) UDS.ui.toast(lost); });
+    } else if (saved) UDS.ui.toast(saved.ctx && !savedCtx ? lost : '이 브라우저에 저장된 이전 작업을 이어서 엽니다.');
     // 크기 변화
     const onSize = () => {
       const r2 = this.r2;

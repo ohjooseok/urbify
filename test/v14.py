@@ -24,10 +24,10 @@ async def main():
         await pg.wait_for_timeout(900)
         ev = pg.evaluate
         # 1~6, 14: 메뉴 모양
-        u = await ev("""()=>{const q=(s)=>document.querySelector(s); const tl=[...document.querySelectorAll('.ptools .tl')].map(b=>Math.round(b.getBoundingClientRect().width)); const xs=[...document.querySelectorAll('.ptools .tl')].map(b=>b.getBoundingClientRect().left);
+        u = await ev("""()=>{const q=(s)=>document.querySelector(s); const vis=[...document.querySelectorAll('.ptools .tl')].filter(b=>b.getBoundingClientRect().width>0); const tl=vis.map(b=>Math.round(b.getBoundingClientRect().width)); const xs=vis.map(b=>b.getBoundingClientRect().left); const ub=q('#btnUndo').getBoundingClientRect(), rb=q('#btnRedo').getBoundingClientRect();
           const gaps=xs.slice(1).map((x,i)=>Math.round(x-xs[i]));
-          return {tl, gaps, brand:q('.pbrand b').innerText, title:document.title, blank:[...document.querySelectorAll('[data-scene="blank"]')].map(b=>b.innerText).join('|'), pnote:!!q('#palette .pnote'), pal:Math.round(q('#palette').getBoundingClientRect().width), side:Math.round(q('.side').getBoundingClientRect().width)}}""")
-        check(len(u['tl'])==5 and len(set(u['tl']))==1, f"undo/redo same size as tools {u['tl']}")
+          return {tl, gaps, ur:[Math.round(ub.width), Math.round(rb.width), Math.round(ub.top)], brand:q('.pbrand b').innerText, title:document.title, blank:[...document.querySelectorAll('[data-scene="blank"]')].map(b=>b.innerText).join('|'), pnote:!!q('#palette .pnote'), pal:Math.round(q('#palette').getBoundingClientRect().width), side:Math.round(q('.side').getBoundingClientRect().width)}}""")
+        check(len(u['tl'])==3 and len(set(u['tl']))==1 and u['ur'][0]==u['ur'][1]>0 and u['ur'][2]<50, f"tools same size; undo/redo in the top bar {u['tl']} {u['ur']}")
         check(max(u['gaps'])-min(u['gaps'])<=1, f"tool buttons evenly spaced {u['gaps']}")
         check(u['brand']=='Urbify' and '\n' not in u['brand'] and u['title']=='Urbify', f"title one line {u['brand']!r} / {u['title']!r}")
         check('직접 그림' not in u['blank'] and not u['pnote'], f"blank note and bottom note removed {u['blank']!r}")
@@ -97,7 +97,7 @@ async def main():
           ['glb','dae','obj'].forEach(f=>{const r=X.build(a,f,o,'t'); out[f]={n:r&&r.ntri, size:r&&r.blob.size, ext:r&&r.ext};});
           const only=X.build(a,'glb',{bld:true},'t'); out.only=only&&only.ntri; const none=X.build(a,'glb',{},'t'); out.none=none; return out}""")
         check(ex['glb']['n']>20000 and ex['glb']['ext']=='glb' and ex['dae']['ext']=='dae' and ex['obj']['ext']=='zip' and 0 < ex['only'] < ex['glb']['n'] and ex['none'] is None, f"3D model export {ex}")
-        await pg.click('#palette .mb[data-arg="project"]'); await pg.wait_for_timeout(200)
+        await pg.click('.top .mbar .mb[data-arg="project"]'); await pg.wait_for_timeout(200)
         await pg.click('[data-act="exportmodel"]'); await pg.wait_for_timeout(300)
         dl = await ev("()=>({fmts:[...document.querySelectorAll('#dialog input[name=mfmt]')].map(i=>i.value), opts:[...document.querySelectorAll('#dialog [data-mopt]')].map(i=>i.dataset.mopt+':'+i.checked)})")
         check(dl['fmts']==['glb','dae','obj'] and 'util:false' in dl['opts'] and 'bld:true' in dl['opts'], f"export dialog {dl}")

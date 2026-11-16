@@ -27,13 +27,13 @@ async def main():
 
         # 1. 왼쪽 메뉴: 묶음 이름과 제목
         pal = await ev("()=>({secs:[...document.querySelectorAll('#palette .psec')].map(x=>x.textContent.trim()), grp:[...document.querySelectorAll('#palette .pgrp:not(.xg) .pgh .lg')].map(x=>x.textContent)})")
-        check(pal['secs']==['Draw','View & Visibility'] and pal['grp'][:3]==['대상지','도로','건물'], f"palette section titles and group names {pal}")
+        check(pal['secs']==['계획','보기·분석'] and pal['grp'][:3]==['대상지','도로','건물'], f"palette section titles and group names {pal}")
         order = await ev("""()=>{const s=[...document.querySelectorAll('#palette .pscroll > *')].map(x=>x.classList.contains('psec')?'T:'+x.textContent.trim():x.classList.contains('pview')?'VIEW':x.classList.contains('xg')?'X:'+x.dataset.grp:x.dataset.grp||x.className); return s;}""")
-        check(order[0]=='T:Draw' and order.index('T:View & Visibility') < order.index('X:shade') < order.index('X:lyr') < order.index('VIEW') and order[-1]=='VIEW', f"Draw above 대상지…조경; View & Visibility above 음영분석…레이어, view icons at the bottom {order}")
+        check(order[0]=='T:계획' and order.index('T:보기·분석') < order.index('X:shade') < order.index('X:lyr') < order.index('VIEW') and order[-1]=='VIEW', f"계획 above 대상지…조경; 보기·분석 above 음영분석…레이어, view icons at the bottom (hidden on wide screens: top bar) {order}")
         cs = "(sel)=>getComputedStyle(document.querySelector(sel)).backgroundColor"
         await ev("()=>UDS.app.setTool('select')"); await pg.wait_for_timeout(300)
         st = await ev(f"""()=>{{const cs={cs}; return {{sOn:cs('#palette [data-pal="tool:select"] .picto'), mOff:cs('#palette [data-pal="tool:move"] .picto'), fs:parseFloat(getComputedStyle(document.querySelector('#palette .psec')).fontSize)}};}}""")
-        await ev("()=>UDS.app.setTool('erase')"); await pg.wait_for_timeout(300)
+        await pg.mouse.move(700, 450); await ev("()=>UDS.app.setTool('erase')"); await pg.wait_for_timeout(600)
         st.update(await ev(f"""()=>{{const cs={cs}; return {{eOn:cs('#palette [data-pal="tool:erase"] .picto'), sOff:cs('#palette [data-pal="tool:select"] .picto')}};}}"""))
         await ev("()=>UDS.app.setTool('select')")
         check(st['sOn']==st['eOn'] and st['mOff']==st['sOff'] and st['sOn']!=st['sOff'], f"tool circles are gray until active, then teal {st}")
@@ -158,7 +158,7 @@ async def main():
 
         # 7. 도움말 메뉴의 소개 칸에 저작권, 음영분석이 꺼져 있으면 날짜·시각을 적지 않음
         await ev("()=>UDS.app.setTool('select')")
-        await pg.click('#palette .mb[data-arg="help"]'); await pg.wait_for_timeout(250)
+        await pg.click('.top .mbar .mb[data-arg="help"]'); await pg.wait_for_timeout(250)
         ab = await ev("()=>{const m=document.querySelector('#pop .mhead.about'); return m?m.innerText:''}")
         check('©' in ab and 'School of Smart Cities' in ab and 'All rights reserved' in ab, f"copyright sits in the help menu's about box {ab!r}")
         await pg.keyboard.press('Escape'); await pg.wait_for_timeout(150)

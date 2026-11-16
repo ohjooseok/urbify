@@ -20,7 +20,7 @@
 
   function Section(canvas, app) {
     this.cv = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = UDS.TH ? UDS.TH.wrap(canvas.getContext('2d')) : canvas.getContext('2d'); // 다크 테마: 그리는 색을 바꿔 줌
     this.app = app;
     this.W = 10; this.H = 10; this.dpr = 1;
     this.geo = null;
@@ -176,7 +176,7 @@
     this.flip = flip;
     if (!flip) return this._draw(svg);
     // 반대쪽에서 본 단면: 그림 전체를 좌우로 뒤집어 그리고(글자는 바로), 누른 자리도 뒤집어 판정한다
-    const sv = svg && svg.isSVG ? svg : null, ctx = sv || this.ctx, g = sv || this.layer.getContext('2d');
+    const sv = svg && svg.isSVG ? svg : null, ctx = sv || this.ctx, g = sv || this.lctx();
     const un = [mirrorText(ctx)]; if (g !== ctx) un.push(mirrorText(g));
     try { return this._draw(svg); } finally { un.forEach((f) => f()); }
   };
@@ -238,7 +238,7 @@
     // 지상 풍경을 그릴 겹
     const L = this.layer;
     if (!svg && (L.width !== this.cv.width || L.height !== this.cv.height)) { L.width = this.cv.width; L.height = this.cv.height; }
-    const g = svg || L.getContext('2d'); // 벡터로 내보낼 때는 겹을 따로 두지 않고 차례대로 적는다
+    const g = svg || this.lctx(); // 벡터로 내보낼 때는 겹을 따로 두지 않고 차례대로 적는다
     if (!svg) { g.setTransform(fx, 0, 0, dpr, fo, 0); g.clearRect(0, 0, W, H); }
 
     const mkPaint = (c) => (fill, lw) => {
@@ -941,8 +941,12 @@
     return svg.toString({ title: `${this.title()} · 축척 1:100`, desc: `Urbify에서 내보낸 가로 단면. 1m = ${U.fmt(sc, 1)}px, 인쇄 치수 기준 1:100.`, mmPerPx: 10 / sc });
   };
   /* 그림(PNG) 내보내기용: 지금 화면의 단면 아래에 축척 막대 띠를 붙인 캔버스 */
+  S.lctx = function () { const c = this.layer.getContext('2d'); return UDS.TH ? UDS.TH.wrap(c) : c; };
   S.exportCanvas = function () {
-    this.draw();
+    const TH = UDS.TH, dk = TH && TH.dark;
+    if (dk) TH.off = true; // 그림 파일은 인쇄를 생각해 라이트로 그린다
+    try { this.draw(); } finally { if (dk) TH.off = false; }
+    if (dk) setTimeout(() => this.draw(), 0); // 화면은 다시 다크로
     const cv = this.cv, g = this.geo;
     if (!cv || cv.width < 20 || !g) return cv;
     const dpr = this.dpr, out = document.createElement('canvas');
@@ -985,6 +989,7 @@
     const cv = this.cv, app = this.app;
     const pos = (e) => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left; return [this.flip ? this.W - x : x, e.clientY - r.top]; }; // 뒤집어 그렸으면 누른 자리도 뒤집는다
     cv.addEventListener('pointerdown', (e) => {
+      if (!app.state.secSeen) { app.state.secSeen = true; if (UDS.ui && app.state.tab === 'props' && !app.state.sel) setTimeout(() => UDS.ui.pane(), 0); } // 작업 순서: 가로 단면을 살펴봄
       if (e.button !== undefined && e.button > 0) return;
       const [x, y] = pos(e);
       cv.classList.add('pf'); // 눌러서 받은 초점에는 테두리를 그리지 않는다(자판으로 옮겨 온 초점에만 그림)

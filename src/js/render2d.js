@@ -135,7 +135,7 @@
   /* ---------- 렌더러 ---------- */
   function Render2D(canvas, app) {
     this.cv = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = UDS.TH ? UDS.TH.wrap(canvas.getContext('2d')) : canvas.getContext('2d'); // 다크 테마: 그리는 색을 바꿔 줌
     this.app = app;
     this.view = { cx: 200, cy: 150, s: 2 };
     this.dpr = 1;

@@ -43,7 +43,8 @@ async def main():
            return {id:b.lotId, floors:nb.floors, far:nb.far, farMax:nb.farMax, overFar:nb.over.far, ck:ck.length, over};}""")
         check(o1['floors']==40 and o1['overFar'] and o1['ck']>=1 and any('용적률' in x for x in o1['over']), f"FAR over the zone limit is flagged in 법규검토 and red in the pane {o1}")
         sty = await ev("()=>{const e=document.querySelector('#pane .stat.over b'); return e?getComputedStyle(e).color:''}")
-        check(sty and re.match(r"rgb\((1[5-9]\d|2\d\d), ?(\d{1,2}|1[0-1]\d), ?(\d{1,2}|1[0-1]\d)\)", sty) is not None, f"over-limit value is shown in red ({sty})")
+        rgb = [int(v) for v in re.findall(r"\d+", sty or '')[:3]]
+        check(len(rgb) == 3 and rgb[0] >= 150 and rgb[0] - rgb[1] >= 80 and rgb[0] - rgb[2] >= 80, f"over-limit value is shown in red ({sty})")
         # 획지 용도 고르기에 건폐율·용적률이 함께
         opts = await ev("()=>{const s=[...document.querySelectorAll('#pane select')].find(x=>[...x.options].some(o=>/건폐율/.test(o.text))); return s?[...s.options].map(o=>o.text).slice(0,4):[]}")
         check(len(opts)>0 and any('건폐율' in t and '용적률' in t for t in opts), f"lot use choices show BCR/FAR limits {opts[:2]}")

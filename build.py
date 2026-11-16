@@ -22,5 +22,15 @@ html = html.replace('__UDS_VERSION__', version).replace('__UDS_BUILD__', built)
 out = root / 'docs'
 out.mkdir(exist_ok=True)
 (out / 'index.html').write_text(html, encoding='utf-8')
+# 지도에서 대상지 고르기에 쓰는 MapLibre GL JS(BSD-3): 필요할 때만 불러오므로 index.html에 넣지 않고 옆에 둔다
+import shutil
+for sub in ('vendor', 'data'):
+    s_dir = src / sub
+    if s_dir.is_dir():
+        d_dir = out / sub
+        d_dir.mkdir(exist_ok=True)
+        for f in s_dir.iterdir():
+            if f.is_file():
+                shutil.copy2(f, d_dir / f.name)
 (out / '.nojekyll').write_text('', encoding='utf-8')  # GitHub Pages가 Jekyll로 가공하지 않게
 print(f'docs/index.html  v{version} ({built})  {len(html.encode("utf-8")):,} bytes')

@@ -19,23 +19,23 @@ async def main():
         await pg.wait_for_timeout(1200)
         ev = pg.evaluate
         toast = "(document.querySelector('#toast')||{}).textContent"
-        mb = lambda k: pg.locator(f'#palette .mbar [data-arg="{k}"]')
+        mb = lambda k: pg.locator(f'.top .mbar [data-arg="{k}"]')
         # 1) 메뉴: 보기 > 평면만, 3D만, 나란히
         await mb("view").click(); await pg.wait_for_timeout(250)
-        print("view menu open:", await ev("!document.querySelector('#pop').hidden"), "| expanded:", await ev("document.querySelector('#palette .mbar [data-arg=\"view\"]').getAttribute('aria-expanded')"))
+        print("view menu open:", await ev("!document.querySelector('#pop').hidden"), "| expanded:", await ev("document.querySelector('.top .mbar [data-arg=\"view\"]').getAttribute('aria-expanded')"))
         # 옆 메뉴 위로 가면 바뀜
         await mb("edit").hover(); await pg.wait_for_timeout(250)
         print("hover → edit menu:", await ev("document.querySelector('#pop .mlist').getAttribute('aria-label')"))
         await mb("view").hover(); await pg.wait_for_timeout(250)
         await pg.locator('#pop [data-act="viewsw"][data-arg="2d"]').click(); await pg.wait_for_timeout(500)
-        print("view after menu:", await ev("UDS.app.state.view"), "| menu closed:", await ev("document.querySelector('#pop').hidden"), "| footer pressed:", await ev("document.querySelector('#palette .pview [data-view-btn=\"2d\"]').getAttribute('aria-pressed')"))
-        await pg.locator('#palette .pview [data-view-btn="split"]').click(); await pg.wait_for_timeout(500)
+        print("view after menu:", await ev("UDS.app.state.view"), "| menu closed:", await ev("document.querySelector('#pop').hidden"), "| footer pressed:", await ev("document.querySelector('.top .viewsw [data-view-btn=\"2d\"]').getAttribute('aria-pressed')"))
+        await pg.locator('.top .viewsw [data-view-btn="split"]').click(); await pg.wait_for_timeout(500)
         print("footer split →", await ev("UDS.app.state.view"))
         # 표현: 선 도면(메뉴) → 채색(아래 단추)
         await mb("view").click(); await pg.wait_for_timeout(200)
         await pg.locator('#pop [data-act="setmode"][data-arg="line"]').click(); await pg.wait_for_timeout(500)
         m1 = await ev("UDS.app.state.mode")
-        await pg.locator('#palette .pview [data-mode="color"]').click(); await pg.wait_for_timeout(500)
+        await pg.locator('.top .seg.mode [data-mode="color"]').click(); await pg.wait_for_timeout(500)
         print("mode menu → line:", m1, "| footer → color:", await ev("UDS.app.state.mode"))
         # 레이어(메뉴에서 열면 메뉴 이름 아래에 뜸)
         await mb("view").click(); await pg.wait_for_timeout(200)

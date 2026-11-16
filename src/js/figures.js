@@ -831,7 +831,8 @@
     const k = o.k || 1, seed = o.seed || 1, line = !!o.line;
     const hq = Math.floor(Math.min(sp.height * k, o.maxH || 99) * 4) / 4; // 화면에 다 안 들어갈 때만 낮아진다
     const scq = Math.pow(2, Math.round(Math.log2(sc) * 18) / 18);
-    const key = [sp.name, sp.crown, sp.height, sp.clear, k.toFixed(3), seed, line ? 1 : 0, hq, scq.toFixed(3), dpr].join('|');
+    const TH = UDS.TH, dk = TH && TH.dark && !TH.off; // 다크 테마는 다른 그림(색을 바꿔 그림)
+    const key = [sp.name, sp.crown, sp.height, sp.clear, k.toFixed(3), seed, line ? 1 : 0, hq, scq.toFixed(3), dpr, dk ? 'd' : 'l'].join('|');
     let s = TREE_CACHE.get(key);
     if (s) return s;
     const M = treeModel(sp, k, seed, hq, scq);
@@ -843,7 +844,7 @@
     const x0 = M.bx0 * pxs - pad * q, yTop = M.by1 * pxs + pad * q;
     const cw = Math.max(2, Math.ceil(M.bx1 * pxs + pad * q - x0)), chh = Math.max(2, Math.ceil(yTop + pad * q));
     const cv = document.createElement('canvas'); cv.width = cw; cv.height = chh;
-    const t = cv.getContext('2d');
+    const t = dk ? TH.wrap(cv.getContext('2d')) : cv.getContext('2d');
     t.setTransform(pxs, 0, 0, -pxs, -x0, yTop); // 미터 단위, 위가 +
     paintTree(t, M, scq, line);
     // ox·oy·w·h는 미터 단위(그릴 때 지금 배율을 곱한다)

@@ -35,8 +35,11 @@ async def main():
           UDS.Ctx.parseLoc('https://map.naver.com/p/entry/place/1?lng=127.0323&lat=37.5894'),
           UDS.Ctx.parseLoc('서울 성북구')].map(x => x ? x.lat.toFixed(4) + ',' + x.lon.toFixed(4) : null)"""))
         # 1) 프로젝트 메뉴 → 실제 지역 불러오기
-        await pg.locator('#palette .mbar [data-arg="project"]').click(); await pg.wait_for_timeout(250)
-        await pg.locator('#pop [data-act="realopen"]').click(); await pg.wait_for_timeout(400)
+        await pg.locator('.top .mbar [data-arg="project"]').click(); await pg.wait_for_timeout(250)
+        check_map = await ev("!!document.querySelector('#pop [data-act=\"realopen\"]')")
+        await pg.keyboard.press('Escape'); await pg.wait_for_timeout(150)
+        await ev("UDS.ui.realDialog()"); await pg.wait_for_timeout(400)  # 붙여 넣기 방식(지도에서 고르기의 [받은 자료 붙여 넣기로 열기])
+        print("project menu has real-area item:", check_map)
         print("dialog:", await ev("document.querySelector('#dialog .dh2 b').textContent"), "| sandbox mode (no direct button):", await ev("!document.querySelector('#rlFetch')"))
         print("req before input:", await ev("document.querySelector('#rlReq').innerText"))
         await pg.fill('#rlLoc', 'https://www.google.com/maps/@37.5894,127.0323,17z')
@@ -106,7 +109,7 @@ async def main():
         await pg.locator('#pane [data-act="ctxmode"][data-arg="use"]').click(); await pg.wait_for_timeout(400)
         await pg.screenshot(path=OUTD + "/v11_use.png")
         # 보기 메뉴에도 표현 방식
-        await pg.locator('#palette .mbar [data-arg="view"]').click(); await pg.wait_for_timeout(250)
+        await pg.locator('.top .mbar [data-arg="view"]').click(); await pg.wait_for_timeout(250)
         print("view menu ctx items:", await ev("[...document.querySelectorAll('#pop [data-act=\"ctxmode\"]')].map(b => b.innerText.trim() + (b.getAttribute('aria-checked') === 'true' ? '✓' : '')).join(' ')"))
         await pg.keyboard.press("Escape")
         await ev("UDS.app.state.ctxMode = 'gray'; UDS.app.rebuild3d(); UDS.app.invalidate(7); UDS.ui.pane();")

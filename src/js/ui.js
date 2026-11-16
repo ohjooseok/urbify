@@ -92,6 +92,7 @@
     });
   }
   /* 설명을 풍선 도움말로만 보이는 작은 물음표(누르지 않아도 마우스를 올리면 뜸) */
+  const swc = (c) => (UDS.TH ? UDS.TH.c(c) : c); // 견본 색: 다크 테마에서는 평면에 그려지는 색과 같게
   const tipI = (t) => `<span class="itip" data-tip="${esc(t)}" tabindex="0" role="img" aria-label="${esc(t)}">${icon('help', 14)}</span>`;
   const phead = (ic, title, sub, actions) => `<div class="phead">${picto(ic, 30)}<div class="pt"><b>${esc(title)}</b><span>${sub || ''}</span></div><div class="pa">${actions || ''}</div></div>`;
 
@@ -132,7 +133,7 @@
       // 도시(가상)·구도심(가상) 옆의 주사위: 같은 성격의 대상지를 누를 때마다 새로 만든다
       const dice = (fam, name) => `<button class="pdice" data-scene="random:${fam}" aria-pressed="false" aria-label="${name} 임의생성" data-tip="${name} 임의생성: 누를 때마다 도로망·건물을 새로 만듭니다">${picto('dice', 26)}</button>`;
       return `<div class="pirow">${sc('standard', 'grid', SCENE_NAME.standard)}${dice('new', SCENE_NAME.standard)}</div>` + `<div class="pirow">${sc('oldtown', 'oldtown', SCENE_NAME.oldtown)}${dice('old', SCENE_NAME.oldtown)}</div>` +
-        sc('blank', 'blank', SCENE_NAME.blank) + sc('real', 'city', '실제 지역 불러오기…') + sc('import', 'map', '지도 캡처로 만들기…');
+        sc('blank', 'blank', SCENE_NAME.blank) + sc('real', 'city', '실제 지역 고르기…') + sc('import', 'map', '지도 캡처로 만들기…');
     }
     if (k === 'road') {
       const item = (key) => {
@@ -147,7 +148,7 @@
     }
     if (k === 'bld') {
       // 용도별 건물: 이름 옆에 토지이용 색과 기본 층수. 그 아래에 놓는 범위(획지 하나·가구 전체)와 크기·밀도 입력
-      return BUILD_USES.map((key) => `<button class="pi" data-pal="build:${key}" aria-pressed="false">${picto(UDS.USE_ICON[key] || 'building', 26)}<span>${C.USES[key].name}</span><small><i class="usw" style="background:${C.USES[key].color}"></i>${C.BLD_DEFAULT[key].floors}층</small></button>`).join('') +
+      return BUILD_USES.map((key) => `<button class="pi" data-pal="build:${key}" aria-pressed="false">${picto(UDS.USE_ICON[key] || 'building', 26)}<span>${C.USES[key].name}</span><small><i class="usw" style="background:${swc(C.USES[key].color)}"></i>${C.BLD_DEFAULT[key].floors}층</small></button>`).join('') +
         `<div class="popt">${app.P ? bldOptHTML() : ''}</div>`;
     }
     if (k === 'furn') return FURN.map((key) => palItem('place:' + key, C.OBJECTS[key].icon, C.OBJECTS[key].name)).join('');
@@ -168,12 +169,12 @@
       `<span class="ur"><button class="tl ub" data-act="undo" data-tip="되돌리기 (Ctrl+Z)" aria-label="되돌리기">${picto('undo', 30)}</button><button class="tl rb" data-act="redo" data-tip="다시 하기 (Ctrl+Shift+Z)" aria-label="다시 하기">${picto('redo', 30)}</button></span>` +
       tool('select', 'select', '선택', 'V') + tool('move', 'move', '이동', 'M') + tool('erase', 'erase', '지우개', 'E') + '</div>';
     h += '<div class="pscroll">';
-    h += '<div class="psec" role="heading" aria-level="2">Draw</div>'; // 대상지~조경: 그리고 놓는 메뉴
+    h += '<div class="psec" role="heading" aria-level="2">계획</div>'; // 대상지~조경: 그리고 놓는 메뉴
     PAL_GROUPS.forEach((g) => {
       h += `<div class="pgrp" data-grp="${g.k}"><button class="pgh" data-act="palgrp" data-arg="${g.k}" aria-expanded="false" title="${g.name}">${icon(g.ic, 17)}<b><span class="lg">${g.name}</span><span class="sm">${g.short}</span></b><i class="pgv"></i>${icon('right', 13)}</button>` +
         `<div class="pgb"><div class="pgi">${palBody(g.k)}</div></div></div>`;
     });
-    h += '<div class="psec pvsec" role="heading" aria-level="2">View &amp; Visibility</div>'; // 음영분석·3D 오브젝트·레이어와 맨 아래 화면 배치·표현 다섯
+    h += '<div class="psec pvsec" role="heading" aria-level="2">보기·분석</div>'; // 음영분석·3D 오브젝트·레이어와 맨 아래 화면 배치·표현 다섯
     // 음영분석 · 3D 오브젝트 · 레이어: 펼치는 묶음(넓은 화면). 앞의 둘은 펼치지 않고도 켜고 끄는 스위치가 머리에 있다
     XGROUPS.forEach((g) => {
       h += `<div class="pgrp xg" data-grp="${g.k}"><div class="pgx"><button class="pgh" data-act="palgrp" data-arg="${g.k}" aria-expanded="false" title="${g.name}">${icon(g.ic, 17)}<b><span class="lg">${g.name}</span><span class="sm">${g.name}</span></b><i class="pgv"></i>${icon('right', 13)}</button>` +
@@ -361,6 +362,9 @@
     $$('[data-scene]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.scene === sk ? 'true' : 'false'));
     $$('button[data-mode]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.mode === st.mode ? 'true' : 'false'));
     $$('button[data-vmode]').forEach((b) => b.setAttribute('aria-pressed', app.modeOf(b.dataset.vk) === b.dataset.vmode ? 'true' : 'false'));
+    // 테마 단추: 지금 테마의 반대(다크면 해, 라이트면 달)
+    const TH = UDS.TH, thb = $('#btnTheme');
+    if (TH && thb) { const ic = TH.dark ? 'sun' : 'moon', nm = TH.dark ? '라이트 모드로 바꾸기' : '다크 모드로 바꾸기'; if (thb.dataset.icn !== ic) { thb.dataset.icn = ic; thb.innerHTML = icon(ic, 17); } thb.title = nm; thb.setAttribute('aria-label', nm); }
     $$('.ub').forEach((b) => { b.disabled = app.hi <= 0; });
     $$('.rb').forEach((b) => { b.disabled = app.hi >= app.hist.length - 1; });
     const a = $('#app');
@@ -535,7 +539,7 @@
     const sPos = st.secS === null || st.secS === undefined ? info.len / 2 : st.secS;
     const sc = Dv.sectionContext(app.P, app.D, road.id, sPos);
     let h = '<b class="st">Section A–A′</b>' + vmodeHTML('sec');
-    h += f.selIn(road.id, (v) => { app.select({ type: 'road', id: v }); app.zoomToRoad(v); return false; }, app.P.roads.map((r) => [r.id, r.name]), { k: 'secroad', aria: '단면을 볼 도로' });
+    h += f.selIn(road.id, (v) => { app.state.secSeen = true; app.select({ type: 'road', id: v }); app.zoomToRoad(v); return false; }, app.P.roads.map((r) => [r.id, r.name]), { k: 'secroad', aria: '단면을 볼 도로' });
     h += `<span class="dimtag">${trim(lay.W)}m<i>${info.cls}</i></span>`;
     if (sc && sc.DH) h += `<span class="dh" title="마주 보는 건물 사이 거리(D)를 건물 높이(H)로 나눈 값. 1 안팎이면 균형, 작을수록 둘러싸인 느낌이 강함">D/H <b>${trim(sc.DH, 2)}</b><i>D ${trim(sc.Dist, 1)}m ÷ H ${trim(sc.Hmean, 1)}m</i></span>`;
     const zone = UDS.SEG_ZONE || {};
@@ -570,7 +574,7 @@
         `</span><span class="mut keytip">${tipI('← → 이웃 구간 · + − 폭 0.25m · Delete 지우기')}</span>`;
     } else if (ut) {
       const def = C.UTIL[ut.type];
-      c += `<span class="segctl"><i class="udot" style="background:${def.color}"></i><b class="un2">${def.name}</b>` +
+      c += `<span class="segctl"><i class="udot" style="background:${swc(def.color)}"></i><b class="un2">${def.name}</b>` +
         '<span class="cl">위치</span>' + f.numIn(ut.off, (v) => { ut.off = v; }, { min: -40, max: 40, step: 0.1, unit: 'm', k: 'huo', aria: '중심선에서의 위치' }) +
         '<span class="cl">깊이</span>' + f.numIn(ut.depth, (v) => { ut.depth = v; }, { min: 0.3, max: 3.1, step: 0.1, unit: 'm', k: 'hud', aria: '묻는 깊이' }) +
         '<span class="cl">관경</span>' + f.numIn(ut.dia, (v) => { ut.dia = v; }, { min: 50, max: 3000, step: 50, unit: 'mm', scale: 0.001, k: 'huz', aria: '관경(mm)' }) +
@@ -695,6 +699,7 @@
   function paneSite(f) {
     const P = app.P, D = app.D, S = P.settings, m = D.metrics;
     let h = phead('plaza', P.meta.title || '계획', `${SCENE_NAME[P.meta.scene] && SCENE_NAME[P.meta.scene] !== P.meta.title ? SCENE_NAME[P.meta.scene] + ' · ' : ''}${trim(P.site.w, 0)} × ${trim(P.site.h, 0)}m · ${trim(m.site / 10000, 2)}ha`, tipI('요소를 누르면 여기서 치수와 유형을 바꿉니다. Shift+누르기로 여럿을 고르고 Delete로 지웁니다. 새 요소는 왼쪽 메뉴에서 골라 놓습니다.'));
+    h += flowHTML();
     // 핵심 지표: 건축 획지 기준 건폐율·용적률, 건물 수·최고 높이, 추정 인구·공원 비율
     h += '<div class="stats">' +
       stat('건폐율', m.buildings ? pct(m.bcr) : '-', '건축면적 ÷ 건축 획지') +
@@ -787,7 +792,7 @@
       r.utils.forEach((u) => {
         const def = C.UTIL[u.type];
         h += `<div class="utilrow${st.selUtil === u.id ? ' on' : ''}">` +
-          `<button class="un" data-act="selutil" data-arg="${u.id}"><i style="background:${def.color}"></i>${def.name}</button>` +
+          `<button class="un" data-act="selutil" data-arg="${u.id}"><i style="background:${swc(def.color)}"></i>${def.name}</button>` +
           f.numIn(u.off, (v) => { u.off = v; }, { min: -40, max: 40, step: 0.1, unit: 'm', k: 'uo' + u.id, aria: '위치' }) +
           f.numIn(u.depth, (v) => { u.depth = v; }, { min: 0.3, max: 3.5, step: 0.1, unit: 'm', k: 'ud' + u.id, aria: '깊이' }) +
           f.numIn(u.dia, (v) => { u.dia = v; }, { min: 50, max: 3000, step: 50, unit: '', scale: 0.001, k: 'uz' + u.id, aria: '관경(mm)' }) +
@@ -842,19 +847,19 @@
       (S.demo ? `<br>새 계획으로 철거: <b>${trim(S.demo, 0)}동</b> (연면적 ${trim(S.demoGfa, 0)}㎡)` : '') +
       (S.off ? `<br>지운 현황 건물 ${trim(S.off, 0)}동 <button class="btn sm quiet" data-act="ctxrestore">모두 되살리기</button>` : '') + '</p>';
     h += `<div class="cxmode"><div class="seg" role="group" aria-label="현황 건물 표현">${X.MODES.map(([k, n]) => `<button data-act="ctxmode" data-arg="${k}" aria-pressed="${mode === k}"${line ? ' disabled' : ''}>${n}</button>`).join('')}</div></div>`;
-    if (mode !== 'gray' && !line) h += `<div class="cxleg">${X.legend(mode).map(([k, n, c]) => `<span><i style="background:${c}"></i>${n}<em>${trim(S.cls[k] || 0, 0)}</em></span>`).join('')}</div>`;
-    h += `<p class="lead tip">${esc(cx.src)} · 중심 ${cx.lat.toFixed(5)}, ${cx.lon.toFixed(5)}.${S.est ? ` 높이·층수 정보가 없는 ${trim(S.est, 0)}동은 어림값으로 세웠습니다.` : ''} 지형(경사)은 반영하지 않습니다.</p>`;
+    if (mode !== 'gray' && !line) h += `<div class="cxleg">${X.legend(mode).map(([k, n, c]) => `<span><i style="background:${swc(c)}"></i>${n}<em>${trim(S.cls[k] || 0, 0)}</em></span>`).join('')}</div>`;
+    h += `<p class="lead tip">${esc(cx.src)} · 중심 ${cx.lat.toFixed(5)}, ${cx.lon.toFixed(5)}.${S.est ? ` 높이·층수 정보가 없는 ${trim(S.est, 0)}동은 어림값으로 세웠습니다(건물을 눌러 층수를 고칠 수 있음, 표현 '높이 근거'로 확인).` : ''} 지형(경사)은 반영하지 않습니다.${cx.attr ? ` 자료 ${esc(cx.attr)}.` : ''}</p>`;
     return h;
   }
   /* 현황 건물 하나: 건축물대장 속성. 바꿀 수는 없고 지울(철거할) 수 있다 */
   function paneCtx(f, b) {
     const X = UDS.Ctx, use = X.useOf(b.pc), cx = app.ctxData();
     const title = b.nm ? (b.dn && b.dn !== b.nm ? `${b.nm} ${b.dn}` : b.nm) : use.name;
-    let h = phead('city', title, `현황 건물 · ${esc(use.name)}`, tipI('현황 건물은 고칠 수 없고 지울(철거할) 수만 있습니다. 이 자리에 새 건물을 놓거나 가구 용도를 정하면 철거된 것으로 보고 점선 윤곽만 남깁니다.') + `<button class="ibtn" data-act="ctxdel" data-arg="${esc(b.id)}" title="이 건물 지우기(철거)" aria-label="현황 건물 지우기">${icon('trash', 16)}</button>`);
-    const hEst = b.est === 'h' || b.est === 'all', flEst = b.est === 'fl' || b.est === 'all';
+    let h = phead('city', title, `현황 건물 · ${esc(use.name)}`, tipI('현황 건물은 지상 층수만 고칠 수 있고, 지울(철거할) 수 있습니다. 이 자리에 새 건물을 놓거나 가구 용도를 정하면 철거된 것으로 보고 점선 윤곽만 남깁니다.') + `<button class="ibtn" data-act="ctxdel" data-arg="${esc(b.id)}" title="이 건물 지우기(철거)" aria-label="현황 건물 지우기">${icon('trash', 16)}</button>`);
+    const hEst = !b.fix && (b.est === 'h' || b.est === 'all' || b.est === 'g'), flEst = !b.fix && (b.est === 'fl' || b.est === 'all' || b.est === 'g');
     h += '<div class="stats">' +
-      stat('층수', `${b.fl}층`, flEst ? '어림값' : b.ug ? `지하 ${b.ug}층` : '지상') +
-      stat('높이', `${trim(b.h, 1)}m`, hEst ? '층수로 어림' : '자료값') +
+      stat('층수', `${b.fl}층`, b.fix ? '직접 고침' : flEst ? '어림값' : b.ug ? `지하 ${b.ug}층` : '지상') +
+      stat('높이', `${trim(b.h, 1)}m`, b.fix ? '층수로 셈' : hEst ? '층수로 어림' : '자료값') +
       stat('건축면적', `${trim(b.ar > 0 ? b.ar : b.a, 0)}㎡`, b.ar > 0 ? '건축물대장' : '윤곽으로 잰 값') +
       stat('연면적', b.ta > 0 ? `${trim(b.ta, 0)}㎡` : '-', b.ta > 0 ? '건축물대장' : '자료 없음') + '</div>';
     const kv = (a, v) => (v ? `<tr><td>${a}</td><td class="r">${v}</td></tr>` : '');
@@ -869,7 +874,11 @@
       kv('지번', esc(b.jb)) +
       kv('위반건축물', b.vi ? '해당' : '') +
       '</tbody></table>';
-    if (b.est) h += `<p class="lead tip">${b.est === 'all' ? '층수·높이 정보가 없어 1층으로 세웠습니다.' : b.est === 'fl' ? '지상 층수 정보가 없어 연면적÷건축면적으로 층수를 어림했습니다.' : '높이 정보가 없어 층수×층고로 높이를 어림했습니다.'}</p>`;
+    // 지상 층수 고치기: 고친 값은 계획에 남아 되돌리기·저장을 따른다. 높이는 층수×층고(용도별)로 다시 셈
+    const raw = (app.ctx && app.ctx.bld.find((x) => x.id === b.id)) || b; // 받은 자료 그대로의 값
+    h += f.head('지상 층수 고치기', b.fix ? `<button class="btn sm" data-act="ctxfl" data-arg="${esc(b.id)}|0">${icon('reset', 13)}받은 값 ${raw.fl}층으로</button>` : '') +
+      f.num('지상 층수', b.fl, (v) => { const P = app.P; if (!P.ctx) return false; const fx = { ...(P.ctx.fl || {}) }; if (v > 0 && v !== raw.fl) fx[b.id] = v; else delete fx[b.id]; P.ctx.fl = fx; }, { min: 1, max: 90, int: true, unit: '층', note: '답사·거리뷰로 확인한 층수를 넣으면 높이(층수×용도별 층고)도 함께 바뀝니다.' });
+    if (b.est && !b.fix) h += `<p class="lead tip">${b.est === 'all' ? '층수·높이 정보가 없어 1층으로 세웠습니다.' : b.est === 'g' ? '층수·높이 자료가 없어 용도와 건축면적으로 층수를 어림했습니다. 실제와 다르면 위에서 고치세요.' : b.est === 'fl' ? '지상 층수 정보가 없어 연면적÷건축면적(또는 높이)으로 층수를 어림했습니다.' : '높이 정보가 없어 층수×층고로 높이를 어림했습니다.'}</p>`;
     if (cx) h += `<p class="lead tip">자료: ${esc(cx.src)} (${esc(cx.date)} 받음)</p>`;
     return h;
   }
@@ -1004,7 +1013,7 @@
       kv('추정 인구(주거 연면적 기준)', trim(bs.pop, 0) + '명') +
       '</tbody></table>';
     h += '<table class="tb"><thead><tr><th>용도 구성</th><th class="r">획지</th><th class="r">건물</th><th class="r">면적(㎡)</th><th class="r">비율</th></tr></thead><tbody>';
-    C.USE_ORDER.forEach((k) => { const x = bs.byUse[k]; if (!x) return; h += `<tr><td><i class="sw2" style="background:${C.USES[k].color}"></i>${C.USES[k].name}</td><td class="r">${x.n}</td><td class="r">${x.bld || '-'}</td><td class="r">${trim(x.area, 0)}</td><td class="r">${pct(blk.area ? x.area / blk.area : 0)}</td></tr>`; });
+    C.USE_ORDER.forEach((k) => { const x = bs.byUse[k]; if (!x) return; h += `<tr><td><i class="sw2" style="background:${swc(C.USES[k].color)}"></i>${C.USES[k].name}</td><td class="r">${x.n}</td><td class="r">${x.bld || '-'}</td><td class="r">${trim(x.area, 0)}</td><td class="r">${pct(blk.area ? x.area / blk.area : 0)}</td></tr>`; });
     h += '</tbody></table>';
     // 건물 채우기: 용도와 건폐율·용적률·최고 층수로 가구 안의 획지를 한꺼번에 채운다
     if (!ui._fillUse || ui._fillBlk !== blk.id) { ui._fillBlk = blk.id; ui._fillUse = C.BLD_DEFAULT[S.use] ? S.use : C.BLD_DEFAULT[app.state.buildUse] ? app.state.buildUse : 'res'; }
@@ -1221,6 +1230,7 @@
     let h = li ? locHTML(f, li) : '';
     h += phead('plaza', '지표', `${esc(P.meta.title || '')} · 대상지 ${trim(m.site, 0)}㎡`);
     h += '<div class="stats">' + stat('건폐율', pct(m.bcr), '건축면적 ÷ 건축 획지') + stat('용적률', pct(m.far), '연면적 ÷ 건축 획지') + stat('도로율', pct(m.roadRatio), '도로 ÷ 대상지') + stat('공원·녹지율', pct(m.parkRatio), '공원·광장·녹지 ÷ 대상지') + '</div>';
+    h += goalsHTML(f, m);
     const kv = (a, b) => `<tr><td>${a}</td><td class="r">${b}</td></tr>`;
     h += '<table class="tb kv"><tbody>' +
       kv('가구 · 획지 · 건물', `${m.blocks} · ${m.lots} · ${m.buildings}`) +
@@ -1233,11 +1243,62 @@
       '</tbody></table>';
     h += f.head('토지이용계획표');
     h += '<table class="tb"><thead><tr><th>구분</th><th class="r">면적(㎡)</th><th class="r">비율</th></tr></thead><tbody>';
-    C.USE_ORDER.forEach((k) => { const a = m.byUse[k]; if (!a) return; h += `<tr><td><i class="sw2" style="background:${C.USES[k].color}"></i>${C.USES[k].name}</td><td class="r">${trim(a, 0)}</td><td class="r">${pct(a / m.site)}</td></tr>`; });
-    h += `<tr><td><i class="sw2" style="background:${C.PAL.asphalt}"></i>도로</td><td class="r">${trim(m.roadArea, 0)}</td><td class="r">${pct(m.roadRatio)}</td></tr>`;
+    C.USE_ORDER.forEach((k) => { const a = m.byUse[k]; if (!a) return; h += `<tr><td><i class="sw2" style="background:${swc(C.USES[k].color)}"></i>${C.USES[k].name}</td><td class="r">${trim(a, 0)}</td><td class="r">${pct(a / m.site)}</td></tr>`; });
+    h += `<tr><td><i class="sw2" style="background:${swc(C.PAL.asphalt)}"></i>도로</td><td class="r">${trim(m.roadArea, 0)}</td><td class="r">${pct(m.roadRatio)}</td></tr>`;
     h += `<tr class="sum"><td>합계</td><td class="r">${trim(m.site, 0)}</td><td class="r">100%</td></tr></tbody></table>`;
     h += f.head('가로 위계표', '<span class="hn">누르면 선택</span>');
     h += roadTable();
+    return h;
+  }
+
+  /* 계획 목표: 마스터플랜의 밀도·녹지·인구 목표를 정해 두고 지금 계획과 견준다(목표는 계획에 함께 저장) */
+  const GOALS = [
+    ['far', '용적률', (m) => (m.buildings ? m.far * 100 : null), '%', 20, 1500, 10, '건축 획지 기준 연면적 ÷ 획지면적'],
+    ['bcr', '건폐율', (m) => (m.buildings ? m.bcr * 100 : null), '%', 5, 90, 1, '건축 획지 기준 건축면적 ÷ 획지면적'],
+    ['road', '도로율', (m) => m.roadRatio * 100, '%', 5, 60, 1, '도로 ÷ 대상지'],
+    ['park', '공원·녹지율', (m) => m.parkRatio * 100, '%', 1, 60, 1, '공원·광장·녹지 ÷ 대상지'],
+    ['pop', '추정 인구', (m) => m.pop, '명', 10, 200000, 10, '주거 연면적 ÷ 1인당 주거면적'],
+  ];
+  function goalsHTML(f, m) {
+    const P = app.P, G = P.meta.goals || {};
+    let h = f.head('계획 목표', '<span class="hn">목표를 넣으면 지금 값과 견줍니다</span>');
+    h += '<div class="goals">';
+    GOALS.forEach(([k, name, get, unit, min, max, step, note]) => {
+      const cur = get(m), tg = +G[k] > 0 ? +G[k] : 0;
+      const r = tg && cur !== null ? cur / tg : null;
+      const cls = r === null ? '' : r > 1.1 ? ' over' : r < 0.9 ? ' under' : ' ok';
+      const top = Math.max(tg, cur || 0) || 1;
+      const say = r === null ? '' : r > 1.1 ? `목표보다 ${trim(cur - tg, unit === '명' ? 0 : 1)}${unit} 많음` : r < 0.9 ? `목표의 ${Math.round(r * 100)}%` : '목표 범위(±10%)';
+      h += `<div class="goal${cls}"><span class="gn tp" data-tip="${esc(note)}">${name}</span><span class="gv">${cur === null ? '-' : trim(cur, unit === '명' ? 0 : 1) + unit}</span>` +
+        f.numIn(tg || null, (v) => { const g = { ...(P.meta.goals || {}) }; if (v > 0) g[k] = v; else delete g[k]; P.meta.goals = g; }, { min, max, step, nullable: true, unit, k: 'goal-' + k, ph: '목표', aria: name + ' 목표' }) +
+        `<span class="gb" aria-hidden="true"><i style="width:${(((cur || 0) / top) * 100).toFixed(1)}%"></i>${tg ? `<b style="left:${((tg / top) * 100).toFixed(1)}%"></b>` : ''}</span>${say ? `<span class="gs">${say}</span>` : ''}</div>`;
+    });
+    return h + '</div>';
+  }
+
+  /* 작업 순서: 대상지 → 도로망 → 용도·밀도 → 건축물 → 가로 단면 → 법규 검토. 계획 상태로 끝낸 단계를 표시하고 다음 단계를 안내 */
+  const FLOW = [
+    ['site', '대상지', '왼쪽 [대상지]에서 실제 지역(지도에서 고르기)이나 가상 대상지를 고릅니다.'],
+    ['road', '도로망', '왼쪽 [도로]에서 위계(대로·중로·소로·골목)를 골라 평면에 그립니다. 도로로 둘러싸인 땅이 가구가 됩니다.'],
+    ['use', '용도·밀도', '평면에서 가구를 눌러 용도와 건폐율·용적률을 정합니다.'],
+    ['bld', '건축물', '획지를 눌러 건물 층수·형태를 정하거나 왼쪽 [건물]에서 놓습니다. 3D에서 스케일을 봅니다.'],
+    ['sec', '가로 단면', '아래 단면 화면에서 보도·차로 폭과 양쪽 건물의 높이(D/H)를 확인합니다.'],
+    ['law', '법규 검토', '[법규검토] 탭에서 도로·건축 기준에 어긋난 곳을 고칩니다.'],
+  ];
+  function flowState() {
+    const P = app.P, D = app.D, m = D.metrics;
+    const errs = D.checks.filter((c) => c.level === 'error').length;
+    return {
+      site: true, road: P.roads.some((r) => !r.inner),
+      use: D.lots.some((l) => l.use && l.use !== 'vacant'),
+      bld: m.buildings > 0, sec: !!app.state.secSeen, law: m.buildings > 0 && errs === 0,
+    };
+  }
+  function flowHTML() {
+    const S = flowState();
+    const next = FLOW.find(([k]) => !S[k]);
+    let h = '<div class="flow" role="list" aria-label="작업 순서">' + FLOW.map(([k, n], i) => `<button class="fl${S[k] ? ' done' : ''}${next && next[0] === k ? ' cur' : ''}" role="listitem" data-act="flow" data-arg="${k}" data-tip="${esc(FLOW[i][2])}"><i>${S[k] ? icon('check', 11) : i + 1}</i><span>${n}</span></button>`).join('') + '</div>';
+    h += next ? `<p class="flownext"><b>다음 · ${next[1]}</b> ${next[2]}</p>` : '<p class="flownext"><b>모든 단계를 거쳤습니다.</b> 목표(지표 탭)와 견주며 다듬으세요.</p>';
     return h;
   }
 
@@ -1355,7 +1416,8 @@
         sep + cap('표현 (화면마다 이름 옆에서도 바꿈)') + it('setmode', 'color', '모든 화면 채색', { check: st.mode === 'color' }) + it('setmode', 'line', '모든 화면 선 도면', { check: st.mode === 'line' }) + it('layers', null, '레이어…', { ic: 'layers' }) +
         (app.ctxData() ? sep + cap('현황 건물 표현') + UDS.Ctx.MODES.map(([k, n]) => it('ctxmode', k, n, { check: st.ctxMode === k, dis: line })).join('') : '') +
         sep + it('shadow', null, '그림자', { check: !!L.shadows && !line, dis: line }) + it('traffic', null, '3D 오브젝트(사람·차량)', { check: !!st.traffic.on }) + it('sun', null, '음영분석(시각·날짜·조명)…', { ic: 'sun' }) +
-        sep + it('fit2d', null, '대상지 전체 보기', { ic: 'fit' }) + (palNarrow() ? '' : it('panel', 'L', '왼쪽 메뉴', { check: !st.hideL }) + it('panel', 'R', '오른쪽 패널', { check: !st.hideR }));
+        sep + it('fit2d', null, '대상지 전체 보기', { ic: 'fit' }) + (palNarrow() ? '' : it('panel', 'L', '왼쪽 메뉴', { check: !st.hideL }) + it('panel', 'R', '오른쪽 패널', { check: !st.hideR })) +
+        (UDS.TH ? sep + cap('테마') + it('theme', 'dark', '다크', { check: UDS.TH.pref === 'dark' }) + it('theme', 'light', '라이트', { check: UDS.TH.pref === 'light' }) + it('theme', 'system', '시스템 설정 따름', { check: UDS.TH.pref === 'system' }) : '');
     }
     return it('help', null, '사용법', { ic: 'help', key: 'F1' }) + it('keys', null, '단축키', { ic: 'keyboard' }) +
       sep + '<div class="mhead about"><b>Urbify</b><i>Interactive Urban Design Platform · ' + UDS.VERSION + ' (' + UDS.BUILD + ')</i>' +
@@ -1414,7 +1476,7 @@
       `<div class="nrow">${card('standard', 'grid', SCENE_NAME.standard, '격자형 가구·위계별 도로·근린공원을 갖춘 신시가지(420×300m)')}<button class="nrand" data-new="random:new" data-tip="격자형·변형 격자형 도시를 새로 만듭니다">${picto('dice', 24)}<span>임의생성</span></button></div>` +
       `<div class="nrow">${card('oldtown', 'oldtown', SCENE_NAME.oldtown, '좁은 보도·전주·골목길·노후 상가가 남은 지방 구도심(360×260m)')}<button class="nrand" data-new="random:old" data-tip="구도심형 대상지를 새로 만듭니다">${picto('dice', 24)}<span>임의생성</span></button></div>` +
       card('blank', 'blank', SCENE_NAME.blank, '크기만 정하고 도로부터 직접 그리기') +
-      card('real', 'city', '실제 지역 불러오기', '브이월드 건물·지적 자료로 실제 동네의 현황 건물(층수·높이·용도)과 도로망을 세움') +
+      card('real', 'city', '실제 지역 불러오기', '지도에서 대상지를 골라 실제 동네의 현황 건물과 도로망을 세움(인증키 없이 · 브이월드 인증키가 있으면 층수·용도·사용승인일까지)') +
       card('import', 'map', '지도 캡처로 만들기', '네이버·카카오 지도 화면 그림에서 도로망을 읽어 만듦') + '</div>',
       (edited ? `<button class="btn" data-act="savefile">${icon('download', 14)}작업 파일 저장</button>` : '') + '<button class="btn" data-act="closedlg">취소</button>');
   }
@@ -1506,7 +1568,7 @@
     ui.pop(anchor, '<div class="pt2">추가할 구간</div><div class="grid2">' + C.SEG_ORDER.map((k) => `<button class="gi" data-act="addsegtype" data-arg="${k}">${picto(UDS.SEG_ICON[k], 24)}<span>${C.SEG[k].name}</span><small>${trim(C.SEG[k].defW)}m</small></button>`).join('') + '</div><p class="pnote">선택한 구간의 오른쪽에 들어갑니다.</p>', 'wide');
   }
   function addUtilPop(anchor) {
-    ui.pop(anchor, '<div class="pt2">추가할 지하시설</div><div class="grid2">' + C.UTIL_ORDER.map((k) => `<button class="gi" data-act="addutiltype" data-arg="${k}"><i class="udot" style="background:${C.UTIL[k].color}"></i><span>${C.UTIL[k].name}</span><small>깊이 ${trim(C.UTIL[k].depth, 1)}m</small></button>`).join('') + '</div><p class="pnote">단면에서 관을 끌어 위치와 깊이를 옮깁니다.</p>', 'wide');
+    ui.pop(anchor, '<div class="pt2">추가할 지하시설</div><div class="grid2">' + C.UTIL_ORDER.map((k) => `<button class="gi" data-act="addutiltype" data-arg="${k}"><i class="udot" style="background:${swc(C.UTIL[k].color)}"></i><span>${C.UTIL[k].name}</span><small>깊이 ${trim(C.UTIL[k].depth, 1)}m</small></button>`).join('') + '</div><p class="pnote">단면에서 관을 끌어 위치와 깊이를 옮깁니다.</p>', 'wide');
   }
 
   function download(name, data, mime) {
@@ -1597,11 +1659,15 @@
   }
   function exportCanvas(which) {
     let cv = null, name = '';
-    if (which === '3d') { if (!app.r3.ok) return; app.r3.draw(); cv = app.r3.cv; name = `${fileBase()}_3D.png`; }
-    else { cv = app.sec.exportCanvas(); name = `${fileBase()}_단면.png`; }
-    if (!cv || cv.width < 20) { ui.toast(which === '3d' ? '3D 화면을 먼저 열어 주세요.' : '단면 화면을 먼저 열어 주세요.'); return; }
+    const TH = UDS.TH, dk = TH && TH.dark;
     let url = '';
-    try { url = cv.toDataURL('image/png'); } catch (e) { ui.toast('이미지를 만들지 못했습니다.'); return; }
+    if (which === '3d') {
+      if (!app.r3.ok) return;
+      if (dk) TH.off = true; // 그림 파일은 라이트 바탕으로
+      try { app.r3.draw(); cv = app.r3.cv; name = `${fileBase()}_3D.png`; if (cv && cv.width >= 20) url = cv.toDataURL('image/png'); } catch (e) { url = ''; } finally { if (dk) { TH.off = false; app.invalidate(2); } }
+    } else { cv = app.sec.exportCanvas(); name = `${fileBase()}_단면.png`; }
+    if (!cv || cv.width < 20) { ui.toast(which === '3d' ? '3D 화면을 먼저 열어 주세요.' : '단면 화면을 먼저 열어 주세요.'); return; }
+    try { if (!url) url = cv.toDataURL('image/png'); } catch (e) { ui.toast('이미지를 만들지 못했습니다.'); return; }
     const title = which === '3d' ? '3D 장면 내보내기' : '가로 단면 내보내기';
     if (canDownload) showImage(title, url, name); else soon(askHost(), 1500).then(() => showImage(title, url, name));
   }
@@ -1633,7 +1699,8 @@
   function helpDlg() {
     ui.dialog('사용법', '<ul class="help">' +
       '<li><b>대상지</b>는 왼쪽 메뉴의 [대상지]에서 고릅니다. 도시(가상), 구도심(가상), 누를 때마다 새로 만드는 임의생성(가상), 아무것도 없는 빈 대상지, 지도 캡처 그림에서 도로를 읽어 만든 대상지 가운데 하나로 시작합니다.</li>' +
-      '<li><b>실제 지역</b>: [프로젝트] 메뉴나 [대상지]의 [실제 지역 불러오기]에서 위치(좌표)·범위·브이월드 인증키를 넣고 건물(GIS건물통합정보)·지적(연속지적도) 자료를 받으면, 실제 동네의 현황 건물이 자료의 층수·높이대로 서고 도로 필지로 도로망이 생깁니다. 오른쪽 [현황]에서 단색·용도·층수·건축 연도로 칠해 보고, 현황 건물을 눌러 건축물대장 속성을 봅니다. 가구에 건물을 놓거나 용도를 정하면 그 자리의 현황 건물은 철거된 것으로 보고 점선 윤곽만 남깁니다.</li>' +
+      '<li><b>실제 지역</b>: [프로젝트] 메뉴나 [대상지]의 [실제 지역 고르기]에서 장소를 찾고 지도를 끌어 가운데 사각형을 대상지에 맞춘 뒤 [대상지 만들기]를 누릅니다. 인증키 없이 공개 지도 자료(Overture Maps·OpenStreetMap)로 건물 윤곽과 도로 중심선(따로 그려진 양방향 차도는 하나로, 원형 교차로는 회전교차로로)을 세우고, 층수·높이 자료가 없는 건물은 용도와 건축면적으로 어림합니다. 브이월드 인증키가 있으면 건물(GIS건물통합정보)의 층수·높이·용도·사용승인일과 지적(연속지적도)으로 세웁니다. 오른쪽 [현황]에서 단색·용도·층수·건축 연도·높이 근거로 칠해 보고, 현황 건물을 눌러 속성을 보거나 지상 층수를 고칩니다. 가구에 건물을 놓거나 용도를 정하면 그 자리의 현황 건물은 철거된 것으로 보고 점선 윤곽만 남깁니다.</li>' +
+      '<li><b>작업 순서·계획 목표</b>: 속성 탭 맨 위의 작업 순서(대상지 → 도로망 → 용도·밀도 → 건축물 → 가로 단면 → 법규 검토)가 끝낸 단계를 표시하고 다음 할 일을 알려 줍니다. 지표 탭의 [계획 목표]에 용적률·건폐율·도로율·공원·녹지율·인구 목표를 넣으면 지금 계획과 견주어 막대로 보여 줍니다(목표는 계획과 함께 저장).</li>' +
       '<li><b>메뉴 막대</b>(왼쪽 위 로고 아래): [프로젝트]에는 새 프로젝트·작업 파일 열기·저장·내보내기·처음 상태로 되돌리기·전체 지우기가, [편집]에는 되돌리기·도구·지우기·빈 가구 채우기가, [보기]에는 화면 배치·크게 보기·표현·레이어·그림자·패널 접기가, [도움말]에는 사용법과 단축키가 있습니다. 처음 상태로 되돌리기와 전체 지우기도 되돌리기(Ctrl+Z)로 다시 살릴 수 있습니다.</li>' +
       '<li><b>왼쪽 메뉴</b>(창이 좁으면 왼쪽의 좁은 띠, 휴대폰은 아래 막대)의 Draw 아래 [도로]·[건물]·[가로시설물]·[조경]을 누르면 세부 항목이 펼쳐집니다. 그 아래 View &amp; Visibility에는 음영분석·3D 오브젝트·레이어와 맨 아래 화면 배치·표현 단추가 있습니다. 도로는 위계를 고른 뒤 평면에 점을 찍어 내고, 건물은 용도를 고른 뒤 획지를 눌러 세우며, 교목·가로등·벤치 등은 고른 뒤 평면이나 3D에 눌러 놓습니다.</li>' +
       '<li><b>선택·이동·지우개</b>는 따로 있는 도구입니다. 선택은 누른 요소를 고르고, 이동은 시설물·수목과 도로를 끌어 옮기며(도로의 흰 꼭짓점을 끌면 그 점만), 지우개는 누른 도로·건물·요소를 지웁니다.</li>' +
@@ -1889,9 +1956,18 @@
       app.fillBlockAt(a, use);
     },
     newproject() { newProjectDialog(); },
-    realopen() { ui.closePop(); if (ui.realDialog) ui.realDialog(); },
+    realopen() { ui.closePop(); if (ui.siteDialog) ui.siteDialog(); else if (ui.realDialog) ui.realDialog(); },
+    realpaste() { ui.closePop(); if (ui.realDialog) ui.realDialog(); },
     ctxmode(a) { if (!UDS.Ctx.MODES.some(([k]) => k === a)) return; ui.closePop(); app.state.ctxMode = a; app.rebuild3d(); app.invalidate(7); ui.pane(); },
+    flow(a, el) {
+      const step = FLOW.find(([k]) => k === a); if (!step) return;
+      if (a === 'site' || a === 'road' || a === 'bld') { if (palNarrow()) { palPop(document.querySelector(`.pgrp[data-grp="${a}"] .pgh`) || el, a); } else { palOnly(a); ui.palette(); } }
+      else if (a === 'law') { app.state.tab = 'checks'; ui.pane(); ui.top(); return; }
+      else if (a === 'sec') { app.state.secSeen = true; const sp = document.querySelector('#secpanel'); if (sp && sp.scrollIntoView) try { sp.scrollIntoView({ block: 'nearest' }); } catch (e) { /* 무시 */ } ui.pane(); }
+      ui.toast(step[2]);
+    },
     ctxdel(a) { app.eraseAt({ type: 'ctx', id: a }); ui.toast(`현황 건물을 지웠습니다. ${ui.undoTip()}`); },
+    ctxfl(a) { const [id, n] = String(a).split('|'); if (app.ctxSetFloors(id, +n || 0)) ui.toast(+n ? `지상 ${+n}층으로 고쳤습니다.` : '받은 자료의 층수로 되돌렸습니다.'); },
     rabdel() { const t = app.state.sel; if (t && t.type === 'rab') { app.eraseAt(t); ui.toast(`회전교차로를 지웠습니다. ${ui.undoTip()}`); } },
     treedel() { const t = app.state.sel; if (t && t.type === 'tree') { app.eraseAt(t); ui.toast(`나무를 지웠습니다. ${ui.undoTip()}`); } },
     treerestore() { const n = app.treeRestore(); if (n) ui.toast(`지운 나무 ${n}그루를 되살렸습니다.`); },
@@ -1931,6 +2007,7 @@
     closedlg() { ui.closeDialog(); },
     copydlg() { copyText(ui._copy || '', '복사했습니다.'); },
     airender() { ui.closePop(); if (UDS.AIRender) UDS.AIRender.open(); },
+    theme(a) { ui.closePop(); if (!UDS.TH) return; if (a === 'dark' || a === 'light' || a === 'system') UDS.TH.set(a); else UDS.TH.toggle(); },
     matdel(a) { const m = app.matDef(a); if (!m) return; app.deleteMat(a); ui.toast(`재료 '${m.name}'를 지웠습니다. 쓰던 건물은 도장·스타코로 바뀝니다. ${ui.undoTip()}`); },
     hostimg() {
       const im = ui._img; if (!im || !hostSave) return;
@@ -2145,7 +2222,7 @@
       const sc = e.target.closest('button[data-scene]');
       if (sc) { if (sc.closest('#pop')) ui.closePop(); switchScene(sc.dataset.scene); return; }
       const nc = e.target.closest('button[data-new]'); // 새 프로젝트 창의 대상지 종류
-      if (nc) { const k = nc.dataset.new; ui.closeDialog(); if (k === 'import') { if (ui.importDialog) ui.importDialog(); } else if (k === 'real') { if (ui.realDialog) ui.realDialog(); } else if (k === 'blank') blankDialog(); else if (k.startsWith('random')) app.setScene('random', { family: k.split(':')[1] || '' }); else if (M.scenes[k]) app.setScene(k); return; }
+      if (nc) { const k = nc.dataset.new; ui.closeDialog(); if (k === 'import') { if (ui.importDialog) ui.importDialog(); } else if (k === 'real') { if (ui.siteDialog) ui.siteDialog(); else if (ui.realDialog) ui.realDialog(); } else if (k === 'blank') blankDialog(); else if (k.startsWith('random')) app.setScene('random', { family: k.split(':')[1] || '' }); else if (M.scenes[k]) app.setScene(k); return; }
       const bz = e.target.closest('button[data-blank]');
       if (bz) { const [w, h] = bz.dataset.blank.split('x'); const a1 = $('#blankW'), b1 = $('#blankH'); if (a1 && b1) { a1.value = w; b1.value = h; blankHa(); } return; }
       const vm = e.target.closest('button[data-vmode]'); // 화면마다 따로 고르는 표현
@@ -2215,7 +2292,7 @@
   /* 왼쪽 메뉴 [대상지]에서 종류를 눌렀을 때. 바꾼 내용이 있으면 닫기 전에 한 번 묻는다. 임의생성은 누를 때마다 새로 만든다 */
   function switchScene(k) {
     if (k === 'import') { ui.top(); if (ui.importDialog) ui.importDialog(); return; }
-    if (k === 'real') { ui.top(); if (ui.realDialog) ui.realDialog(); return; }
+    if (k === 'real') { ui.top(); if (ui.siteDialog) ui.siteDialog(); else if (ui.realDialog) ui.realDialog(); return; }
     if (k === 'blank') { ui.top(); blankDialog(); return; }
     if (k.startsWith('random')) { // 주사위: 누를 때마다 새로 만든다
       const fam = k.split(':')[1] || '', nm = fam === 'old' ? SCENE_NAME.oldtown : SCENE_NAME.standard;

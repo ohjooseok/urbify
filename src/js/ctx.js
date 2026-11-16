@@ -211,6 +211,8 @@
   };
   // 층고(m): 분류별 어림값. 층수만 있고 높이가 없을 때 높이를 어림하는 데 씀
   const FLOOR_H = { res: 2.9, com: 3.6, off: 3.8, pub: 3.9, ind: 5.5, none: 3.3 };
+  /* 층수로 어림한 높이(m): 층고 × 층수 + 파라펫 */
+  X.hOf = (cat, fl) => r2(fl * (FLOOR_H[cat] || 3.3) + (cat === 'res' ? 0.4 : 0.8));
   X.CATS = {
     res: { name: '주거', color: null }, com: { name: '상업·근린생활', color: null }, off: { name: '업무', color: null },
     pub: { name: '공공·문화·교육·의료', color: null }, ind: { name: '산업·창고·기타', color: '#B5A795' }, none: { name: '정보 없음', color: '#D6D1CA' },
@@ -249,8 +251,8 @@
       let h = num(p.hg);
       const okH = h > 2 && h < 400 && (!fl || (h / fl > 1.9 && h / fl < 12));
       if (!okH) {
-        if (!fl) { fl = 1; est = 'all'; }
-        h = fl * fh + (use.cat === 'res' ? 0.4 : 0.8);
+        if (!fl) { const g = Math.round(num(p._fl)); if (g > 0) { fl = U.clamp(g, 1, 90); est = 'g'; } else { fl = 1; est = 'all'; } } // g: 용도·건축면적으로 어림(공개 지도 자료)
+        h = X.hOf(use.cat, fl);
         if (!est) est = 'h';
       } else if (!fl) { fl = Math.max(1, Math.round(h / fh)); est = 'fl'; }
       const jb = +p.mnnm ? String(+p.mnnm) + (+p.slno ? '-' + +p.slno : '') : '';
@@ -261,6 +263,7 @@
         y: dateOf(p.use_confm_de), sc: String(p.strct_code || ''), nm: String(p.buld_nm || '').trim(), dn: String(p.dong_nm || '').trim(),
         pnu: String(p.pnu || ''), jb, vi: String(p.violt_bild || '').toUpperCase() === 'Y' ? 1 : 0, dd: dateOf(p.data_creat_change_de || p.last_updt_dt),
       };
+      if (p.ovt_cls || p.ovt_sub) rec.oc = String(p.ovt_cls || p.ovt_sub); // 공개 지도 자료의 건물 분류(영문)
       if (est) rec.est = est;
       out.push(rec);
     });
@@ -304,7 +307,10 @@
 
   /* ---------- 표현: 단색 · 용도 · 층수 · 사용승인 경과 연수 ---------- */
   const NOW = new Date().getFullYear();
-  X.MODES = [['gray', '단색'], ['use', '용도'], ['floor', '층수'], ['age', '건축 연도']];
+  X.MODES = [['gray', '단색'], ['use', '용도'], ['floor', '층수'], ['age', '건축 연도'], ['est', '높이 근거']];
+  // 층수·높이를 어디서 얻었나: 자료값 · 일부 어림(층수만/높이만) · 용도·면적으로 어림 · 직접 고침
+  const EST_CLS = [['edata', '자료값', '#7FC8B4'], ['epart', '일부 어림', '#FBC193'], ['eguess', '어림(용도·면적)', '#F28076'], ['efix', '직접 고침', '#8FB4E3']];
+  X.estKey = (b) => (b.fix ? 'efix' : !b.est ? 'edata' : b.est === 'fl' || b.est === 'h' ? 'epart' : 'eguess');
   const FLOOR_CLS = [[2, '1–2층', '#FAE0C7'], [5, '3–5층', '#FBC193'], [10, '6–10층', '#F28076'], [15, '11–15층', '#C9574F'], [999, '16층 이상', '#8B3A3E']];
   const AGE_CLS = [[10, '10년 미만', '#BFE3D8'], [20, '10–20년', '#7FC8B4'], [30, '20–30년', '#FBC193'], [999, '30년 이상', '#F28076']];
   X.GRAY = { fill: '#CBC5BC', edge: '#8F887E', wall: '#E3DFD8', roof: '#D6D0C7' };
@@ -313,6 +319,7 @@
   X.classOf = function (b, mode) {
     if (mode === 'use') return [b.cat, X.CATS[b.cat].name, catColor(b.cat)];
     if (mode === 'floor') { const k = FLOOR_CLS.findIndex((c) => b.fl <= c[0]); const c = FLOOR_CLS[k]; return ['f' + k, c[1], c[2]]; }
+    if (mode === 'est') { const k = X.estKey(b), c = EST_CLS.find((x) => x[0] === k); return [k, c[1], c[2]]; }
     if (mode === 'age') {
       const a = X.ageOf(b);
       if (a === null) return ['anone', '정보 없음', '#D6D1CA'];
@@ -325,6 +332,7 @@
     if (mode === 'use') return ['res', 'com', 'off', 'pub', 'ind', 'none'].map((k) => [k, X.CATS[k].name, catColor(k)]);
     if (mode === 'floor') return FLOOR_CLS.map((c, k) => ['f' + k, c[1], c[2]]);
     if (mode === 'age') return AGE_CLS.map((c, k) => ['a' + k, c[1], c[2]]).concat([['anone', '정보 없음', '#D6D1CA']]);
+    if (mode === 'est') return EST_CLS.map((c) => c.slice());
     return [['gray', '현황 건물', X.GRAY.fill]];
   };
 
@@ -419,7 +427,7 @@
       if (V.demo.has(b.id)) { s.demoGfa += gfa; return; }
       if (V.off.has(b.id)) return;
       s.shown++; s.fp += b.a; s.gfa += gfa; s.flSum += b.fl; s.maxFl = Math.max(s.maxFl, b.fl); s.maxH = Math.max(s.maxH, b.h);
-      if (b.est) s.est++;
+      if (b.est && !b.fix) s.est++;
       const a = X.ageOf(b); if (a !== null) { s.aged++; if (a >= 30) s.old++; }
       const k = X.classOf(b, mode)[0]; s.cls[k] = (s.cls[k] || 0) + 1;
     });
@@ -604,7 +612,20 @@
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     P.ctx = { id, lat: +o.lat.toFixed(6), lon: +o.lon.toFixed(6), off: [] };
     let nRoads = 0;
-    if (o.roads && par.length && MI && MI.roadSpec) {
+    if (o.par2 && o.par2.length) o.par2.forEach((q) => par.push(q)); // 이미 대상지 좌표로 된 바탕(철도 부지 등)
+    if (o.streets && MI && MI.roadSpec) { // 도로 중심선(공개 지도 자료): 폭·등급으로 단면을 정한다
+      const cnt = {}, nm = {};
+      o.streets.forEach((s) => {
+        if (!s.pts || s.pts.length < 2) return;
+        const sp = MI.roadSpec(s.w, s.major, type);
+        cnt[sp.cls] = (cnt[sp.cls] || 0) + 1;
+        let name = s.name && /[가-힣]/.test(s.name) ? s.name : `${sp.cls} ${cnt[sp.cls]}`;
+        if (s.name && nm[name]) name = `${s.name} ${++nm[s.name]}`; else nm[name] = 1; // 같은 이름의 길이 여러 토막이면 번호를 붙인다
+        P.roads.push(M.makeRoad(sp.k, s.pts, { ...sp.o, name }));
+        nRoads++;
+      });
+      (o.rabs || []).forEach((rb) => { (P.rabouts = P.rabouts || []).push({ id: U.uid('rb'), p: rb.p.slice(), d: rb.d || null, lanes: null }); });
+    } else if (o.roads && par.length && MI && MI.roadSpec) {
       const cnt = {};
       X.streetsFromParcels(X.parcels(o.par || [], F, { noClip: true }), o.W, o.H).forEach((s) => {
         if (s.pts.length < 2) return;
@@ -614,7 +635,8 @@
         nRoads++;
       });
     }
-    const data = { id, lat: P.ctx.lat, lon: P.ctx.lon, W: o.W, H: o.H, date, src: '브이월드 GIS건물통합정보' + (par.length ? '·연속지적도' : ''), bld, par };
+    const data = { id, lat: P.ctx.lat, lon: P.ctx.lon, W: o.W, H: o.H, date, src: o.src || '브이월드 GIS건물통합정보' + (par.length ? '·연속지적도' : ''), bld, par };
+    if (o.attr) data.attr = o.attr;
     return { P, data, nRoads };
   };
 
