@@ -5976,13 +5976,13 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
 
   /* 유형: 이름과 평면에 칠하는 색(채도를 낮춰 계획 건물의 용도 색과 섞이지 않게) */
   F.TYPES = {
-    house: { name: '단독주택', color: '#E8D6BC' },
-    multi: { name: '다세대·다가구', color: '#D8B3A0' },
-    shop: { name: '근린상가', color: '#EDBF8E' },
-    apt: { name: '아파트·연립', color: '#CBD4DC' },
-    office: { name: '업무·상업 빌딩', color: '#A9BED0' },
-    pub: { name: '공공·교육', color: '#BAD1BE' },
-    shed: { name: '창고·공장', color: '#CAC5BC' },
+    house: { name: '단독주택', color: '#E6D9C6' },
+    multi: { name: '다세대·다가구', color: '#D5B8AA' },
+    shop: { name: '근린상가', color: '#E5C7A2' },
+    apt: { name: '아파트·연립', color: '#C9D3DB' },
+    office: { name: '업무·상업 빌딩', color: '#A9BCCB' },
+    pub: { name: '공공·교육', color: '#BCD0BF' },
+    shed: { name: '창고·공장', color: '#C8C3BA' },
   };
   F.ORDER = ['house', 'multi', 'shop', 'apt', 'office', 'pub', 'shed'];
 
@@ -6096,10 +6096,10 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
       if (fl >= 6) { t = sh.el >= 2.2 && a >= 250 ? 'apt' : 'office'; if (t === 'apt') why.push('길쭉한 판상형'); }
       else if (fl >= 3) {
         if (a >= 1000) { t = sh.el >= 2.5 ? 'pub' : 'office'; why.push(t === 'pub' ? '큰 판상형' : '큰 건물'); }
-        else t = W >= 12 ? 'shop' : W >= 8 ? (coin < 0.5 ? 'shop' : 'multi') : 'multi';
+        else t = W >= 12 ? 'shop' : W >= 8 ? (coin < 0.35 ? 'shop' : 'multi') : 'multi';
       } else if (a < 18) t = 'shed';
       else if (a >= 500) t = W >= 12 && a < 1500 ? 'shop' : 'shed';
-      else t = W >= 12 ? 'shop' : W >= 8 && a >= 70 ? (coin < 0.35 ? 'shop' : 'house') : 'house';
+      else t = W >= 12 ? 'shop' : W >= 8 && a >= 70 ? (coin < 0.2 ? 'shop' : 'house') : 'house';
     }
     why.push(`${fl}층${b.est && !b.fix ? '(어림)' : ''}`, `건축면적 ${U.fmt0 ? U.fmt0(a) : Math.round(a)}㎡`);
     why.push(W ? `폭 ${Math.round(W)}m 길에 면함` : '길에 면하지 않음');
