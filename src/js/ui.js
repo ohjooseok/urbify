@@ -848,7 +848,7 @@
       (S.off ? `<br>지운 현황 건물 ${trim(S.off, 0)}동 <button class="btn sm quiet" data-act="ctxrestore">모두 되살리기</button>` : '') + '</p>';
     h += `<div class="cxmode"><div class="seg" role="group" aria-label="현황 건물 표현">${X.MODES.map(([k, n]) => `<button data-act="ctxmode" data-arg="${k}" aria-pressed="${mode === k}"${line ? ' disabled' : ''}>${n}</button>`).join('')}</div></div>`;
     if (mode !== 'gray' && !line) h += `<div class="cxleg">${X.legend(mode).map(([k, n, c]) => `<span><i style="background:${swc(c)}"></i>${n}<em>${trim(S.cls[k] || 0, 0)}</em></span>`).join('')}</div>`;
-    h += `<p class="lead tip">${esc(cx.src)} · 중심 ${cx.lat.toFixed(5)}, ${cx.lon.toFixed(5)}.${S.est ? ` 높이·층수 정보가 없는 ${trim(S.est, 0)}동은 어림값으로 세웠습니다(건물을 눌러 층수를 고칠 수 있음, 표현 '높이 근거'로 확인).` : ''} 지형(경사)은 반영하지 않습니다.${cx.attr ? ` 자료 ${esc(cx.attr)}.` : ''}</p>`;
+    h += `<p class="lead tip">${esc(cx.src)} · 중심 ${cx.lat.toFixed(5)}, ${cx.lon.toFixed(5)}.${S.est ? ` 높이·층수 정보가 없는 ${trim(S.est, 0)}동은 어림값으로 세웠습니다(건물을 눌러 층수를 고칠 수 있음, 표현 '높이 근거'로 확인).` : ''} 지형(경사)은 반영하지 않습니다.${mode === 'fac' ? ' 입면(재료·창·1층·간판·지붕)은 층수·건축면적·평면 모양·용도·면한 길로 추정한 것입니다(건물을 눌러 유형·변주를 고칠 수 있음).' : ''}${cx.attr ? ` 자료 ${esc(cx.attr)}.` : ''}</p>`;
     return h;
   }
   /* 현황 건물 하나: 건축물대장 속성. 바꿀 수는 없고 지울(철거할) 수 있다 */
@@ -879,7 +879,21 @@
     h += f.head('지상 층수 고치기', b.fix ? `<button class="btn sm" data-act="ctxfl" data-arg="${esc(b.id)}|0">${icon('reset', 13)}받은 값 ${raw.fl}층으로</button>` : '') +
       f.num('지상 층수', b.fl, (v) => { const P = app.P; if (!P.ctx) return false; const fx = { ...(P.ctx.fl || {}) }; if (v > 0 && v !== raw.fl) fx[b.id] = v; else delete fx[b.id]; P.ctx.fl = fx; }, { min: 1, max: 90, int: true, unit: '층', note: '답사·거리뷰로 확인한 층수를 넣으면 높이(층수×용도별 층고)도 함께 바뀝니다.' });
     if (b.est && !b.fix) h += `<p class="lead tip">${b.est === 'all' ? '층수·높이 정보가 없어 1층으로 세웠습니다.' : b.est === 'g' ? '층수·높이 자료가 없어 용도와 건축면적으로 층수를 어림했습니다. 실제와 다르면 위에서 고치세요.' : b.est === 'fl' ? '지상 층수 정보가 없어 연면적÷건축면적(또는 높이)으로 층수를 어림했습니다.' : '높이 정보가 없어 층수×층고로 높이를 어림했습니다.'}</p>`;
+    h += ctxFacHTML(f, b);
     if (cx) h += `<p class="lead tip">자료: ${esc(cx.src)} (${esc(cx.date)} 받음)</p>`;
+    return h;
+  }
+  /* 현황 건물의 추정 입면: 유형 고르기 · 다른 변주 · 요약 · 근거 */
+  function ctxFacHTML(f, b) {
+    const Fc = UDS.Fac, map = app.ctxFac ? app.ctxFac() : null, d = map && map.get(b.id);
+    if (!Fc || !d) return '';
+    const ov = (app.P.ctx && app.P.ctx.fa && app.P.ctx.fa[b.id]) || {};
+    let h = f.head('입면 (추정)' + tipI('외관 자료가 없어 층수·건축면적·평면 모양·주용도·받을 때 면한 길로 건물 유형을 정하고, 유형마다 흔한 재료·색·창·1층·간판·지붕 가운데 하나를 골라 입혔습니다. 유형을 바꾸거나 다른 변주를 고를 수 있습니다(되돌리기·저장 따름). 3D 표현이 [입면]일 때 보입니다.'),
+      ov.t || ov.v ? `<button class="btn sm" data-act="ctxfareset" data-arg="${esc(b.id)}">${icon('reset', 13)}자동으로</button>` : '');
+    h += f.sel('입면 유형', ov.t || '', (v) => { const P = app.P; if (!P.ctx) return false; const fa = { ...(P.ctx.fa || {}) }, cur = { ...(fa[b.id] || {}) }; if (v) cur.t = v; else delete cur.t; if (Object.keys(cur).length) fa[b.id] = cur; else delete fa[b.id]; P.ctx.fa = fa; },
+      [['', `자동 · ${Fc.TYPES[d.auto].name}`]].concat(Fc.ORDER.map((k) => [k, Fc.TYPES[k].name])));
+    h += `<div class="facrow"><span class="facsum">${esc(Fc.summary(d))}</span><button class="btn sm" data-act="ctxvar" data-arg="${esc(b.id)}" title="같은 유형에서 재료·색·창·간판을 다시 고릅니다">${icon('shuffle', 13)}다른 변주${d.v ? ` <em>${d.v + 1}</em>` : ''}</button></div>`;
+    h += `<p class="lead tip">근거: ${esc(d.why.join(' · '))} → ${esc(Fc.TYPES[d.auto].name)}${d.fixed ? ` (직접 고침: ${esc(Fc.TYPES[d.t].name)})` : ''}</p>`;
     return h;
   }
 
@@ -1967,6 +1981,8 @@
       ui.toast(step[2]);
     },
     ctxdel(a) { app.eraseAt({ type: 'ctx', id: a }); ui.toast(`현황 건물을 지웠습니다. ${ui.undoTip()}`); },
+    ctxvar(a) { const fa = (app.P.ctx && app.P.ctx.fa) || {}, cur = fa[a] || {}; app.ctxSetFac(a, { v: (cur.v || 0) + 1 }); },
+    ctxfareset(a) { if (app.ctxSetFac(a, { t: '', v: 0 })) ui.toast('입면을 자동으로 정한 것으로 되돌렸습니다.'); },
     ctxfl(a) { const [id, n] = String(a).split('|'); if (app.ctxSetFloors(id, +n || 0)) ui.toast(+n ? `지상 ${+n}층으로 고쳤습니다.` : '받은 자료의 층수로 되돌렸습니다.'); },
     rabdel() { const t = app.state.sel; if (t && t.type === 'rab') { app.eraseAt(t); ui.toast(`회전교차로를 지웠습니다. ${ui.undoTip()}`); } },
     treedel() { const t = app.state.sel; if (t && t.type === 'tree') { app.eraseAt(t); ui.toast(`나무를 지웠습니다. ${ui.undoTip()}`); } },

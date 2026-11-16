@@ -737,6 +737,7 @@
     if (cx && layers.ctx !== false && D.ctxV) {
       pen.layer('EXISTING', '현황 건물');
       const mode = (o.app.state && o.app.state.ctxMode) || 'gray';
+      const fac = mode === 'fac' && o.app.ctxFac ? o.app.ctxFac() : null;
       cx.bld.forEach((b) => {
         if (D.ctxV.off.has(b.id)) return;
         const rings = [].concat(...b.parts.map((pt) => [pt.o].concat(pt.h)));
@@ -744,6 +745,16 @@
         if (line) { pen.rings(rings, { fill: '#ececec', stroke: '#4a4a4a', lw: 0.75 }); return; }
         const col = mode === 'gray' ? X.GRAY.fill : X.classOf(b, mode)[2];
         pen.rings(rings, { fill: col, stroke: mode === 'gray' ? X.GRAY.edge : U.shade(col, -0.35), lw: 0.75 });
+        // 입면: 경사지붕의 용마루(모임지붕은 추녀마루까지)
+        const f = fac && fac.get(b.id), Pt = f && f.pitch;
+        if (Pt) {
+          const v = (i) => Pt.R[((i % 4) + 4) % 4], R1 = U.mid(v(Pt.i0), v(Pt.i0 + 1)), R2 = U.mid(v(Pt.i0 + 2), v(Pt.i0 + 3)), u = U.norm(U.sub(R2, R1)), sc = U.shade(col, -0.38);
+          if (Pt.kind === 'hip') {
+            const k = Math.min(Pt.halfD, U.dist(R1, R2) / 2), A1 = U.add(R1, U.mul(u, k)), A2 = U.sub(R2, U.mul(u, k));
+            pen.line([A1, A2], { stroke: sc, lw: 0.7 });
+            [[v(Pt.i0), A1], [v(Pt.i0 + 1), A1], [v(Pt.i0 + 2), A2], [v(Pt.i0 + 3), A2]].forEach((sg) => pen.line(sg, { stroke: sc, lw: 0.5 }));
+          } else pen.line([R1, R2], { stroke: sc, lw: 0.7 });
+        }
       });
     }
     // 건물

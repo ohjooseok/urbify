@@ -23,7 +23,7 @@
       secShow: { text: true, dim: true, util: true }, // 가로 단면에 얹는 정보: 텍스트(모든 글자) · 치수 · 지하시설물
       max: null, // 크게 보는 화면: '2d' | '3d' | 'sec' | null
       layers: { buildings: true, trees: true, furniture: true, utilities: false, shadows: false, labels: true, underlay: true, ctx: true, parcels: true },
-      ctxMode: 'gray', // 현황 건물 표현: 'gray' 단색 · 'use' 용도 · 'floor' 층수 · 'age' 건축 연도
+      ctxMode: 'fac', // 현황 건물 표현: 'fac' 입면(추정) · 'gray' 단색 · 'use' 용도 · 'floor' 층수 · 'age' 건축 연도 · 'est' 높이 근거
       under3d: true, drawRoad: null, snap: null, tab: 'props', view: 'split', mview: '2d', sheet: false,
       traffic: { on: false, ped: 0.4, car: 0.4, pm: true, pmd: 0.4 }, // 3D의 사람·차량(처음에는 꺼짐)과 밀도. pm: 자전거도로의 자전거·킥보드(개인형 이동장치)
       ana: { sunpath: false, sunhours: false, lux: false }, // 음영분석의 조도분석: 태양 궤적도 · 일조시간 · 가로등 조도
@@ -85,6 +85,7 @@
       }),
       par: hasSh ? (cx.par || []).map((q) => ({ ...q, parts: parts(q.parts) })) : cx.par,
     };
+    if (hasSh && cx.rd) data.rd = cx.rd.map((r) => ({ ...r, p: r.p.map(mv) }));
     this._ctxSh = { src: cx, k, fx, data };
     return data;
   };
@@ -94,6 +95,35 @@
     const fx = { ...(P.ctx.fl || {}) };
     if (n > 0) fx[id] = U.clamp(Math.round(n), 1, 90); else delete fx[id];
     P.ctx.fl = fx;
+    this.commit();
+    return true;
+  };
+  /* 현황 건물의 추정 입면(식별자 → 입면). 길에 면했는지는 받을 때의 도로망(cx.rd)으로, 없으면(v24까지 만든 대상지) 지금 도로로 본다.
+     건물마다 고친 유형·변주(P.ctx.fa)를 따른다. 자료·도로·고친 값이 같으면 다시 셈하지 않는다 */
+  app.ctxFac = function () {
+    const cx = this.ctxData(), Fc = UDS.Fac; if (!cx || !Fc) return null;
+    const P = this.P, D = this.D;
+    let roads = null, sig = '';
+    if (cx.rd) roads = cx.rd.map((r) => ({ pts: r.p, W: r.w }));
+    else if (D && D.roadInfo) {
+      roads = [];
+      P.roads.forEach((r) => { const inf = D.roadInfo.get(r.id); if (!inf || r.pts.length < 2) return; roads.push({ pts: r.pts, W: inf.lay.W }); sig += inf.lay.W + ':' + r.pts.map((q) => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ') + '|'; });
+    } else return null;
+    const fa = (P.ctx && P.ctx.fa) || null, fk = fa ? JSON.stringify(fa) : '';
+    const m = this._facM;
+    if (m && m.cx === cx && m.sig === sig && m.fk === fk) return m.map;
+    const map = Fc.compute(cx, roads, fa);
+    this._facM = { cx, sig, fk, map };
+    return map;
+  };
+  /* 현황 건물의 입면 유형·변주 고치기(t: 유형 키 또는 ''(자동), v: 변주 번호) */
+  app.ctxSetFac = function (id, o) {
+    const P = this.P; if (!P.ctx || !this.ctxBld(id)) return false;
+    const fa = { ...(P.ctx.fa || {}) }, cur = { ...(fa[id] || {}) };
+    if ('t' in o) { if (o.t && UDS.Fac && UDS.Fac.TYPES[o.t]) cur.t = o.t; else delete cur.t; }
+    if ('v' in o) { if (o.v > 0) cur.v = Math.round(o.v); else delete cur.v; }
+    if (Object.keys(cur).length) fa[id] = cur; else delete fa[id];
+    P.ctx.fa = fa;
     this.commit();
     return true;
   };

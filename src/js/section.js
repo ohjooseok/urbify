@@ -425,7 +425,7 @@
           if (st2.roof === 'green') { grect(bx0, yTop - 0.28 * sc, bw, 0.28 * sc); gpaint('#9CCBB4', 1); }
           else if (st2.roof === 'gable') {
             const roofPath = () => { g.beginPath(); g.moveTo(xFace - dir * 0.4 * sc, yTop); g.lineTo(xFace + dir * 4.6 * sc, yTop - 2.3 * sc); g.lineTo(xEnd, yTop - 2.3 * sc); g.lineTo(xEnd, yTop); g.closePath(); };
-            roofPath(); gpaint(st2.material === 'metal' ? '#8799ab' : '#a5614b', 1.2);
+            roofPath(); gpaint(st2.roofColor || (st2.material === 'metal' ? '#8799ab' : '#a5614b'), 1.2);
             if (!line) { // 기와(골판) 줄과 처마 그늘
               g.save(); roofPath(); g.clip();
               const step = (st2.material === 'metal' ? 0.45 : 0.3) * sc;

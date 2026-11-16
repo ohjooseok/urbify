@@ -21,7 +21,7 @@
   const SRC_NAME = { ovt: '공개 지도 자료', vw: '브이월드', class: '수업 대상지 자료' };
 
   const st = {
-    lat: 36.6012, lon: 127.2975, z: 16, W: 500, H: 500, src: 'ovt', type: 'oldtown', service: true, rail: true,
+    lat: 36.6012, lon: 127.2975, z: 16, W: 500, H: 500, src: 'ovt', type: 'oldtown', service: true, rail: true, fac: true,
     key: '', domain: '', name: '', nameAt: null,
     busy: false, err: '', note: '', step: '', pv: null, pvKey: '', sites: null, bundle: null,
   };
@@ -35,12 +35,13 @@
     if (o.type && MI && MI.TYPES[o.type]) st.type = o.type;
     if (o.service === false) st.service = false;
     if (o.rail === false) st.rail = false;
+    if (o.fac === false) st.fac = false;
     const v = JSON.parse(localStorage.getItem(LS_VW) || '{}');
     st.key = v.key || ''; st.domain = v.domain || '';
   } catch (e) { /* 저장 공간을 쓸 수 없는 환경 */ }
   const remember = () => {
     try {
-      localStorage.setItem(LS, JSON.stringify({ lat: U.round(st.lat, 6), lon: U.round(st.lon, 6), z: U.round(st.z, 2), W: st.W, H: st.H, src: st.src, type: st.type, service: st.service, rail: st.rail }));
+      localStorage.setItem(LS, JSON.stringify({ lat: U.round(st.lat, 6), lon: U.round(st.lon, 6), z: U.round(st.z, 2), W: st.W, H: st.H, src: st.src, type: st.type, service: st.service, rail: st.rail, fac: st.fac }));
       const v = JSON.parse(localStorage.getItem(LS_VW) || '{}');
       localStorage.setItem(LS_VW, JSON.stringify({ ...v, key: st.key, domain: st.domain }));
     } catch (e) { /* 무시 */ }
@@ -151,6 +152,10 @@
           <label class="sw"><input type="checkbox" id="spSvc"${st.service ? ' checked' : ''}><span>골목·서비스 도로 포함</span></label>
           <label class="sw"><input type="checkbox" id="spRail"${st.rail ? ' checked' : ''}><span>철도 부지 표시</span></label>
         </section>
+        <section class="sps">
+          <h4>현황 건물</h4>
+          <label class="sw"><input type="checkbox" id="spFac"${st.fac ? ' checked' : ''}><span>입면 추정(층수·크기·모양으로 재료·창·간판·지붕)</span></label>
+        </section>
         <section class="spst" id="spSt" aria-live="polite"></section>
       </div>
     </div>`;
@@ -191,6 +196,7 @@
     on('spDom', 'input', (e) => { st.domain = e.target.value.trim(); remember(); });
     on('spType', 'change', (e) => { st.type = e.target.value; remember(); if (st.pv) { renderPreview(); syncStatus(); } });
     on('spSvc', 'change', (e) => { st.service = e.target.checked; remember(); st.pvKey = ''; schedule(0); });
+    on('spFac', 'change', (e) => { st.fac = e.target.checked; remember(); });
     on('spRail', 'change', (e) => { st.rail = e.target.checked; remember(); if (st.pv) { renderPreview(); syncStatus(); } });
     on('spGo', 'click', build);
     on('spPaste', 'click', () => { ui.closeDialog(); if (ui.realDialog) ui.realDialog(); });
@@ -486,6 +492,7 @@
       res.P.meta.title = nm ? `${nm} 일대` : `실제 지역 ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
       st.busy = false; st.step = '';
       ui.closeDialog();
+      app.state.ctxMode = st.fac ? 'fac' : 'gray'; // 현황 건물 표현: 입면 추정 또는 매스(단색)
       app.load(res.P, { ctx: res.data });
       const est = res.data.bld.filter((b) => b.est).length;
       const npar = res.data.par.filter((q) => !/^rail/.test(q.id)).length; // 철도 부지 띠는 필지가 아님

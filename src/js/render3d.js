@@ -1017,8 +1017,12 @@ void main(){
         });
       }
       if (layers.ctx !== false) {
-        const mode = app.state.ctxMode || 'gray';
-        cx.bld.forEach((b) => { if (X.shown(V, b.id)) this._ctxBuilding(b, solid, edges, pick({ type: 'ctx', id: b.id }), mode); });
+        const mode = app.state.ctxMode || 'gray', fac = mode === 'fac' && app.ctxFac ? app.ctxFac() : null;
+        cx.bld.forEach((b) => {
+          if (!X.shown(V, b.id)) return;
+          const pk = pick({ type: 'ctx', id: b.id }), f = fac && fac.get(b.id);
+          if (f) this._ctxFacade(b, f, solid, edges, pk); else this._ctxBuilding(b, solid, edges, pk, fac ? 'gray' : mode);
+        });
       }
     }
     // 수목
@@ -1404,6 +1408,89 @@ void main(){
       });
       this._flatH(solid, this._ctxTri('b:' + b.id, k, pt), H, roof, pk, 2);
     });
+  };
+
+  /* 현황 건물: 추정 입면(facade.js). 설계 건물과 같은 벽 무늬(창·1층·간판·재료)와 난간벽·옥상 물건, 작은 집은 박공·모임지붕 */
+  const WIN_I = ['punched', 'ribbon', 'vertical', 'curtain'], GR_I = ['shop', 'lobby', 'residential', 'pilotis', 'arcade', 'closed'], SG_I = { none: 0, cluttered: 1, regulated: 2 };
+  Rr._ctxWall = function (f, a, c, top, Hp, isFront, solid, edges, pk, col, rnd) {
+    const st = f.st, L = U.dist(a, c), y0 = 0.03;
+    if (L < 0.02) return;
+    const n2 = U.perpR(U.norm(U.sub(c, a)));
+    const matIdx = Math.max(0, C.MAT_ORDER.indexOf(st.material)), winIdx = Math.max(0, WIN_I.indexOf(st.win)), grIdx = Math.max(0, GR_I.indexOf(st.ground)), sgIdx = SG_I[st.sign] || 0;
+    const bay = isFront && st.ground === 'shop' ? Math.max(f.bay, 3.6) : f.bay;
+    const pier = st.win === 'curtain' ? 0.35 : 0.6, span = L - 2 * pier;
+    const nb = span > bay * 0.55 ? Math.max(1, Math.round(span / bay)) : 0, bwE = nb ? span / nb : bay;
+    const gcode = isFront ? grIdx : st.ground === 'pilotis' ? 3 : 6;
+    const s1 = [f.floorH, f.groundH, bwE, st.wwr], s2 = [winIdx + 10 * (nb + 1), gcode, matIdx + (isFront ? sgIdx * 10 : 0), 1];
+    solid.quad(W3(a, y0), W3(c, y0), W3(c, top), W3(a, top), [n2[0], 0, -n2[1]], col, [[-pier, 0], [L - pier, 0], [L - pier, top], [-pier, top]], s1, s2, pk);
+    if (Hp > top + 0.01) solid.quad(W3(a, top), W3(c, top), W3(c, Hp), W3(a, Hp), [n2[0], 0, -n2[1]], col, [[-pier, top], [L - pier, top], [L - pier, Hp], [-pier, Hp]], [f.floorH, f.groundH, bwE, -1], s2, pk);
+    if (!isFront) return;
+    const d = U.norm(U.sub(c, a));
+    if (st.canopy && L > 2 && f.floors > 1) {
+      const P2 = [U.add(a, U.mul(d, 0.3)), U.sub(c, U.mul(d, 0.3)), U.add(U.sub(c, U.mul(d, 0.3)), U.mul(n2, 1.3)), U.add(U.add(a, U.mul(d, 0.3)), U.mul(n2, 1.3))];
+      solid.prism(P2, f.groundH - 0.75, f.groundH - 0.6, '#3d4247', pk);
+      edges.poly2(P2, f.groundH - 0.6, true);
+    }
+    const sh = Math.min(2.6, top - f.groundH - 0.3);
+    if (st.sign === 'cluttered' && L > 3 && sh > 0.8) { // 돌출 간판
+      for (let s = 1.5; s < L - 1; s += 5 + rnd() * 3) {
+        const p = U.add(U.add(a, U.mul(d, s)), U.mul(n2, 0.55));
+        const sc = [[0.85, 0.2, 0.15], [0.98, 0.78, 0.15], [0.15, 0.45, 0.85], [0.2, 0.62, 0.3], [0.92, 0.45, 0.1]][Math.floor(rnd() * 5)];
+        const P2 = solid.box(p[0], p[1], 0.12, 0.9, f.groundH + 0.3, sh, Math.atan2(d[1], d[0]), sc, pk);
+        edges.boxEdges(P2, f.groundH + 0.3, f.groundH + 0.3 + sh);
+      }
+    }
+  };
+  Rr._ctxFacade = function (b, f, solid, edges, pk) {
+    const col = U.hexToRgb(f.st.wallColor), rnd = U.rng(U.hashStr(b.id + '#s')), y0 = 0.03;
+    if (f.pitch) { this._ctxPitched(b, f, solid, edges, pk, col, rnd); return; }
+    const top = f.top, Hp = Math.max(top, f.H), roofCol = U.hexToRgb(f.st.roofColor || '#cfcecb');
+    b.parts.forEach((pt, pi) => {
+      [pt.o].concat(pt.h).forEach((ring, ri) => {
+        const n = ring.length;
+        for (let i = 0; i < n; i++) {
+          const a = ring[i], c = ring[(i + 1) % n];
+          this._ctxWall(f, a, c, top, Hp, ri === 0 && f.front.has(pi + ':' + i), solid, edges, pk, col, rnd);
+          const z = ring[(i - 1 + n) % n], d1 = U.norm(U.sub(a, z)), d2 = U.norm(U.sub(c, a));
+          if (Math.abs(U.cross(d1, d2)) > 0.34 || U.dot(d1, d2) < 0) edges.seg(W3(a, y0), W3(a, Hp));
+        }
+        edges.poly2(ring, y0, true); edges.poly2(ring, Hp, true);
+      });
+      this._flatH(solid, this._ctxTri('b:' + b.id, pi, pt), top, roofCol, pk, 2);
+      if (!pt.h.length && Hp > top + 0.01) this._roofKit({ id: b.id + '#' + pi, st: { roof: 'flat' }, floors: f.floors }, pt.o, top, Hp, col, solid, edges, pk);
+    });
+  };
+  /* 경사지붕(박공·모임): 평면에 가까운 사각형 위에. 처마는 0.45m 내민다 */
+  Rr._ctxPitched = function (b, f, solid, edges, pk, col, rnd) {
+    const P = f.pitch, R = P.R, i0 = P.i0, top = f.top, rise = P.rise, y0 = 0.03;
+    const v = (i) => R[((i % 4) + 4) % 4];
+    for (let i = 0; i < 4; i++) { this._ctxWall(f, v(i), v(i + 1), top, top, P.front.has(i), solid, edges, pk, col, rnd); edges.seg(W3(v(i), y0), W3(v(i), top)); }
+    edges.poly2(R, y0, true); edges.poly2(R, top, true);
+    const R1 = U.mid(v(i0), v(i0 + 1)), R2 = U.mid(v(i0 + 2), v(i0 + 3)), Lr = U.dist(R1, R2), u = U.norm(U.sub(R2, R1)), w = U.perpL(u), Cc = U.mid(R1, R2);
+    const ov = 0.45, slope = rise / Math.max(0.5, P.halfD), yE = top - ov * slope, yR = top + rise;
+    const E = (i) => { const p = v(i), q = U.sub(p, Cc); return U.add(p, U.add(U.mul(u, Math.sign(U.dot(q, u)) * ov), U.mul(w, Math.sign(U.dot(q, w)) * ov))); };
+    let A1, A2; // 용마루 양 끝
+    if (P.kind === 'hip') { const k = Math.min(P.halfD, Lr / 2); A1 = U.add(R1, U.mul(u, k)); A2 = U.sub(R2, U.mul(u, k)); }
+    else { A1 = U.sub(R1, U.mul(u, ov)); A2 = U.add(R2, U.mul(u, ov)); }
+    const rc = U.hexToRgb(P.col || '#5c6167');
+    const nrm = (A, B, Cp) => {
+      const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [Cp[0] - A[0], Cp[1] - A[1], Cp[2] - A[2]];
+      let n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      const l = Math.hypot(n[0], n[1], n[2]) || 1; n = n.map((x) => x / l); return n[1] < 0 ? n.map((x) => -x) : n;
+    };
+    const Q1 = W3(A1, yR), Q2 = W3(A2, yR);
+    const side = (pa, pb, ra, rb) => { const a3 = W3(pa, yE), b3 = W3(pb, yE); solid.quad(a3, b3, rb, ra, nrm(a3, b3, ra), rc, null, null, [0, 0, 0, 2], pk); };
+    side(E(i0 + 1), E(i0 + 2), Q1, Q2);
+    side(E(i0 + 3), E(i0), Q2, Q1);
+    if (P.kind === 'hip') {
+      const end = (pa, pb, r) => { const a3 = W3(pa, yE), b3 = W3(pb, yE); solid.tri(a3, b3, r, nrm(a3, b3, r), rc, [0, 0, 0, 2], pk); edges.seg(a3, r); edges.seg(b3, r); };
+      end(E(i0), E(i0 + 1), Q1); end(E(i0 + 2), E(i0 + 3), Q2);
+    } else {
+      const gend = (pa, pb, r) => { const a3 = W3(pa, top), b3 = W3(pb, top), r3 = W3(r, yR), n2 = U.perpR(U.norm(U.sub(pb, pa))); solid.tri(a3, b3, r3, [n2[0], 0, -n2[1]], col, [0, 0, 0, 0], pk); edges.seg(a3, r3); edges.seg(b3, r3); };
+      gend(v(i0), v(i0 + 1), R1); gend(v(i0 + 2), v(i0 + 3), R2);
+    }
+    edges.seg(Q1, Q2);
+    edges.poly2([E(0), E(1), E(2), E(3)], yE, true);
   };
 
   Rr._furniture = function (f, solid, ground, edges, pk) {
