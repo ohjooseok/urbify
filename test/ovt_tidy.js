@@ -2,7 +2,8 @@
    (1) 어긋난 십자로(두 교차점 5.9m)와 갈라졌다 다시 만나는 짧은 두 갈래 → 한 교차점, 겹친 갈래 하나만
    (2) 같은 길이 3m 끊긴 것 → 한 길로
    (3) 다른 길 3m 앞에서 끊긴 끝 → 그 길 위(T자)에 닿음, 그 길은 나누지 않음
-   (4) 서로 멀리 떨어진 막다른 끝(12m)은 그대로 */
+   (4) 서로 멀리 떨어진 막다른 끝(12m)은 그대로
+   (5)~(8) 겹친 길 풀기: 머리-꼬리 겹침, 거의 같은 자리, 옆으로 비킨 끝, 이름이 같고 4.5m 비킨 머리-꼬리(교차점 끝) */
 const fs = require('fs');
 global.window = global; global.document = { createElement: () => ({ getContext: () => null }) };
 global.localStorage = { getItem: () => null, setItem: () => {} };
@@ -28,6 +29,23 @@ const S = [
   // (4) 12m 떨어진 두 막다른 끝(잇지 않음)
   seg([[420, 300], [480, 300]], 'residential', '막다른길1'),
   seg([[492, 300], [560, 300]], 'residential', '막다른길2'),
+  // (5) 머리-꼬리로 15m 겹친 같은 길(옆으로 2m 비킴): 양방향 차도를 가운데 선으로 합친 끝에서 생기는 모양
+  seg([[20, 20], [250, 20]], 'tertiary', '겹침로'),
+  seg([[235, 22], [450, 22]], 'tertiary', '겹침로'),
+  // (6) 거의 같은 자리에 겹친 두 길(1.5m): 짧은 쪽을 지움
+  seg([[50, 380], [300, 380]], 'secondary', '쌍둥이길'),
+  seg([[60, 381.5], [280, 381.5]], 'secondary', '쌍둥이길'),
+  // (7) 끝이 옆으로 3m 비켜 이어지는 같은 길
+  seg([[350, 380], [450, 380]], 'residential', '옆끝길'),
+  seg([[450, 383], [560, 383]], 'residential', '옆끝길'),
+  // (8) 머리-꼬리로 14m 겹치고 옆으로 4.5m 비킨 같은 길(폭 15m, 1/4 폭보다 멂), 위쪽 길 끝 v는 곁길이 만나는 교차점
+  seg([[585, 100], [585, 240]], 'tertiary', '비킴로'),
+  seg([[585, 240], [550, 245]], 'residential', '곁길'),
+  seg([[589.5, 226], [589.5, 340]], 'tertiary', '비킴로'),
+  // (9) (8)을 뒤집은 순서: 교차점 끝이 나중에 나오는 길에 있음(교차점에 달린 곁길을 남는 길 위로 옮겨 잇는지)
+  seg([[34.5, 196], [34.5, 330]], 'tertiary', '비킴2로'),
+  seg([[30, 90], [30, 210]], 'tertiary', '비킴2로'),
+  seg([[30, 210], [5, 212]], 'residential', '곁길2'),
 ];
 const R = O.streets(S, F);
 const near = (p, q, d) => Math.hypot(p[0] - q[0], p[1] - q[1]) < (d || 0.6);
@@ -52,5 +70,30 @@ check('through road kept whole', cross.length === 1 && Math.abs(cross[0].len - 5
 // (4)
 const dd = R.streets.filter((s) => /^막다른길/.test(s.name));
 check('far dead ends left alone', dd.length === 2 && dd.every((s) => Math.abs(s.len - (s.name === '막다른길1' ? 60 : 68)) < 1), dd.map((s) => s.name + ':' + Math.round(s.len)));
+// (5)~(7)
+const ov = R.streets.filter((s) => s.name === '겹침로');
+check('head-tail overlap joined into one road', ov.length === 1 && Math.abs(ov[0].len - 430) < 4, ov.map((s) => Math.round(s.len)));
+const tw = R.streets.filter((s) => s.name === '쌍둥이길');
+check('near-duplicate road removed', tw.length === 1 && Math.abs(tw[0].len - 250) < 2, tw.map((s) => Math.round(s.len)));
+const sd = R.streets.filter((s) => s.name === '옆끝길');
+check('side-by-side ends joined', sd.length === 1 && Math.abs(sd[0].len - 210) < 4, sd.map((s) => Math.round(s.len)));
+// (8)
+const bk = R.streets.filter((s) => s.name === '비킴로'), gs = R.streets.find((s) => s.name === '곁길');
+const bkLen = bk.reduce((s, x) => s + x.len, 0), bkJoined = bk.length === 1 || (bk.length === 2 && ends(bk[0]).some((p) => ends(bk[1]).some((q) => near(p, q))));
+check('offset head-tail overlap (same name, 4.5m) cut and joined (no double stretch)', bkJoined && Math.abs(bkLen - 240) < 4, bk.map((s) => Math.round(s.len)));
+const gEnd = gs && ends(gs).find((p) => p[0] > 570);
+const onRoad = (p, s) => s.pts.some((q, i) => i > 0 && U.distPointSeg(p, s.pts[i - 1], q).d < 0.8);
+check('side road at the junction still meets the road', !!(gEnd && bk.some((s) => onRoad(gEnd, s))), gEnd);
+// (9)
+const bk2 = R.streets.filter((s) => s.name === '비킴2로'), gs2 = R.streets.find((s) => s.name === '곁길2');
+const bk2Len = bk2.reduce((s, x) => s + x.len, 0), bk2Joined = bk2.length === 1 || (bk2.length === 2 && ends(bk2[0]).some((p) => ends(bk2[1]).some((q) => near(p, q))));
+check('reversed order: overlap cut and joined', bk2Joined && Math.abs(bk2Len - 240) < 4, bk2.map((s) => Math.round(s.len)));
+const gEnd2 = gs2 && ends(gs2).find((p) => p[0] > 20);
+check('reversed order: side road still meets the road', !!(gEnd2 && bk2.some((s) => onRoad(gEnd2, s))), gEnd2);
+// 겹침 없음: 어떤 두 길도 폭의 1/4 안에서 10m 넘게 나란히 붙어 가지 않음
+const samp = (pts) => { const o = []; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(L / 2)); for (let k = 0; k < n; k++) o.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); } return o; };
+let worst = 0;
+R.streets.forEach((s1) => R.streets.forEach((s2) => { if (s1 === s2) return; const tol = Math.max(3, 0.25 * Math.min(s1.w, s2.w)); let n = 0; samp(s1.pts).forEach((p) => { for (let i = 0; i + 1 < s2.pts.length; i++) if (U.distPointSeg(p, s2.pts[i], s2.pts[i + 1]).d < tol) { n++; break; } }); worst = Math.max(worst, n * 2); }));
+check('no remaining overlaps longer than 10m', worst <= 10, worst);
 console.log(ok ? 'ALL PASS' : 'SOME FAILED');
 process.exit(ok ? 0 : 1);

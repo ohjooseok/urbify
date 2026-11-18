@@ -1,8 +1,8 @@
-"""공개 지도 자료(Overture) 처리 검사(Node로): 시험 PMTiles 읽기(ovt_node), 회전교차로 갈래(ovt_arms), 도로 이음새 고치기(ovt_tidy)"""
+"""공개 지도 자료(Overture) 처리 검사(Node로): 시험 PMTiles 읽기(ovt_node), 회전교차로 갈래(ovt_arms), 도로 이음새 고치기(ovt_tidy), 양방향 차도 합치기(ovt_dual)"""
 import os, subprocess, sys
 here = os.path.dirname(os.path.abspath(__file__))
 ok = True
-for js in ('ovt_node.js', 'ovt_arms.js', 'ovt_tidy.js'):
+for js in ('ovt_node.js', 'ovt_arms.js', 'ovt_tidy.js', 'ovt_dual.js'):
     r = subprocess.run(['node', os.path.join(here, js)], capture_output=True, text=True, timeout=120)
     tail = (r.stdout.strip().splitlines() or [''])[-1]
     good = r.returncode == 0 and ('FAIL' not in r.stdout)
