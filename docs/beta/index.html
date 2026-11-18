@@ -6814,7 +6814,9 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
       edges.filter((e) => e.a !== C && e.b !== C && nearC(e.a) && nearC(e.b) && lenOf(e.pts) < 90).forEach(kill);
     });
     if (rabNodes.length) chainAll();
-    /* (3) 양방향이 따로 그려진 길(한 방향 통행 둘이 나란히, 서로 반대로 달림)을 가운데 선 하나로 */
+    /* (3) 양방향이 따로 그려진 길(한 방향 통행 둘이 나란히, 서로 반대로 달림)을 가운데 선 하나로
+       · 맞은편 차도가 옆길이 붙는 곳마다 여러 토막이어도 함께 짝짓는다
+       · 짝이 없는 끝 꼬리는 가운데 선에 이어 끝 교차로까지 닿게 하고, 지운 차도에 붙어 있던 길은 가운데 선 위로 옮겨 잇는다 */
     const SEP = { motorway: 45, trunk: 45, primary: 40, secondary: 32, tertiary: 26 };
     const near = (p, pts) => { // 꺾은선 위의 가장 가까운 점과 그 구간의 방향
       let best = null;
@@ -6852,46 +6854,96 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
     const chord = (pts) => Math.hypot(pts[pts.length - 1][0] - pts[0][0], pts[pts.length - 1][1] - pts[0][1]);
     const ows = edges.filter((e) => { const L = lenOf(e.pts); return e.s.ow && SEP[e.s.cls] && L >= 12 && L <= 1.3 * chord(e.pts); }); // 굽은 고리(회전교차로 둘레 등)는 빼고
     const bbOf = (pts, m) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; pts.forEach((p) => { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }); return [x0 - m, y0 - m, x1 + m, y1 + m]; };
+    const CJ = 6.5;
+    const dist2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const pinAt = (e, q) => { // 길 e 위의 q 자리(끝 가까우면 그 끝). 그 길은 나누지 않는다(앱은 다른 길 위에 닿은 끝을 T자 교차로로 본다)
+      const L = lenOf(e.pts), lim = (n) => (n.e.length >= 2 ? Math.min(CJ, L / 3) : 2); // 교차점 가까이면 그 교차점에(바로 옆에 T자를 또 만들지 않게)
+      if (dist2(q, e.a.p) < lim(e.a)) return e.a;
+      if (dist2(q, e.b.p) < lim(e.b)) return e.b;
+      let bi = 0, bd = Infinity;
+      for (let i = 0; i + 1 < e.pts.length; i++) { const r = U.distPointSeg(q, e.pts[i], e.pts[i + 1]); if (r.d < bd) { bd = r.d; bi = i; } }
+      const w = { id: nodes.length, p: [q[0], q[1]], e: [] }; nodes.push(w);
+      e.pts.splice(bi + 1, 0, w.p);
+      return w;
+    };
+    const covered = (A, Bs, sep) => { // A의 표본점 가운데 여러 토막(Bs) 중 어느 하나와 짝이 되는 비율과 평균 간격
+      const S = resample(A.pts, 4);
+      let ok = 0, dsum = 0;
+      for (let i = 0; i < S.length; i++) {
+        const p = S[i], j = Math.min(i + 1, S.length - 1), k = Math.max(i - 1, 0);
+        const ua = [S[j][0] - S[k][0], S[j][1] - S[k][1]], la = Math.hypot(ua[0], ua[1]) || 1;
+        let d = Infinity;
+        Bs.forEach((B) => { const nb = near(p, B.pts); if (nb && nb.d <= sep && nb.d >= 2 && (ua[0] * nb.u[0] + ua[1] * nb.u[1]) / la < -0.8 && nb.d < d) d = nb.d; });
+        if (d < Infinity) { ok++; dsum += d; }
+      }
+      return { f: S.length ? ok / S.length : 0, sep: ok ? dsum / ok : 0 };
+    };
     const paired = new Set();
     let nDual = 0;
-    ows.forEach((A) => {
+    // 긴 차도부터: 맞은편 차도가 옆길이 붙는 곳마다 여러 토막이어도 긴 쪽 하나에 그 토막들을 함께 짝짓는다
+    ows.slice().sort((x, y) => lenOf(y.pts) - lenOf(x.pts)).forEach((A) => {
       if (paired.has(A)) return;
       const sep = SEP[A.s.cls], ba = bbOf(A.pts, sep);
-      let best = null;
+      const cand = []; // A 옆을 반대로 달리는 같은 길 토막(제 길이의 60% 넘게 A와 짝)
       ows.forEach((B) => {
         if (B === A || paired.has(B) || B.s.cls !== A.s.cls || !sameName(A.s, B.s)) return;
         const bb = bbOf(B.pts, 0);
         if (bb[0] > ba[2] || bb[2] < ba[0] || bb[1] > ba[3] || bb[3] < ba[1]) return;
-        const ia = pairInfo(A, B, sep); if (ia.f < 0.6) return;
         const ib = pairInfo(B, A, sep); if (ib.f < 0.6) return;
-        const sc = ia.f + ib.f;
-        if (!best || sc > best.sc) best = { B, ia, ib, sc };
+        cand.push({ B, ib });
       });
-      if (!best) return;
-      const B = best.B;
-      // 가운데 선: 더 긴 쪽의 표본점마다 짝의 가장 가까운 점과의 가운데
-      const base = lenOf(A.pts) >= lenOf(B.pts) ? A : B, other = base === A ? B : A;
-      const S = base === A ? best.ia.S : best.ib.S;
-      const mid = [];
-      S.forEach((p) => { const nb = near(p, other.pts); if (nb && nb.d <= sep * 1.25) mid.push([(p[0] + nb.q[0]) / 2, (p[1] + nb.q[1]) / 2]); });
+      if (!cand.length) return;
+      const Bs = cand.map((c) => c.B), ia = covered(A, Bs, sep);
+      if (ia.f < 0.6) return;
+      // 가운데 선: 기준 차도(A, 짝이 하나이고 더 길면 그 짝)의 4m 표본점마다 맞은편 가장 가까운 점과의 가운데.
+      // 짝이 없는 끝 꼬리(맞은편이 먼저 끝나고 한쪽만 교차로까지 이어지는 부분)는 버리지 않고 16m에 걸쳐 차츰 그 차도 위로 돌아가 끝 교차로에 닿게 한다
+      const base = Bs.length === 1 && lenOf(Bs[0].pts) > lenOf(A.pts) ? Bs[0] : A, others = base === A ? Bs : [A];
+      const S = resample(base.pts, 4);
+      const off = S.map((p, i) => { // 맞은편 점이 옆(진행 방향에서 60° 넘게)에 있을 때만: 맞은편 끝을 비스듬히 잡아 가운데 선이 꺾이지 않게
+        const j = Math.min(i + 1, S.length - 1), k = Math.max(i - 1, 0), ux = S[j][0] - S[k][0], uy = S[j][1] - S[k][1], ul = Math.hypot(ux, uy) || 1;
+        let b = null;
+        others.forEach((o) => {
+          const nb = near(p, o.pts); if (!nb || nb.d > sep * 1.25 || (b && nb.d >= b.d)) return;
+          const dx = nb.q[0] - p[0], dy = nb.q[1] - p[1], dl = Math.hypot(dx, dy);
+          if (dl > 0.5 && Math.abs((dx * ux + dy * uy) / (dl * ul)) > 0.5) return;
+          b = nb;
+        });
+        return b ? [(b.q[0] - p[0]) / 2, (b.q[1] - p[1]) / 2] : null;
+      });
+      let i0 = -1, i1 = -1;
+      off.forEach((o, i) => { if (o) { if (i0 < 0) i0 = i; i1 = i; } });
+      if (i0 < 0 || i1 - i0 < 1) return;
+      const T = 4, mid = [];
+      S.forEach((p, i) => {
+        let o = off[i];
+        if (!o && i > i0 && i < i1) return; // 가운데에서 잠깐 짝이 없는 표본점은 건너뜀
+        if (!o) { const m = i < i0 ? Math.min(T, i0) : Math.min(T, S.length - 1 - i1), k = i < i0 ? i0 - i : i - i1, f = Math.max(0, 1 - k / m), oo = off[i < i0 ? i0 : i1]; o = [oo[0] * f, oo[1] * f]; }
+        mid.push([p[0] + o[0], p[1] + o[1]]);
+      });
       if (mid.length < 2) return;
-      paired.add(A); paired.add(B);
-      drop(A); drop(B);
-      edges = edges.filter((e) => e !== A && e !== B);
-      const sepAvg = (best.ia.sep + best.ib.sep) / 2;
-      const s = { ...better(base.s, other.s), ow: 0, w: Math.max(O.ROAD_W[base.s.cls] || 15, Math.round(sepAvg + 0.5 * (O.ROAD_W[base.s.cls] || 15))), dual: 1 };
-      const e = mkEdge(mid, s); if (e) edges.push(e);
-      // 두 차도가 끝나는 점(가로지르는 길 위)과 가운데 선의 끝을 잇는다: 가운데 선 끝을 가장 가까운 끝점 쪽 교차로 사이 가운데에 둔다
+      const gone = [A].concat(Bs);
+      gone.forEach((x) => { paired.add(x); drop(x); });
+      edges = edges.filter((e) => !gone.includes(e));
+      const sepAvg = (ia.sep + cand.reduce((t, c) => t + c.ib.sep, 0) / cand.length) / 2;
+      const s = { ...others.reduce((acc, o) => better(acc, o.s), base.s), ow: 0, w: Math.max(O.ROAD_W[base.s.cls] || 15, Math.round(sepAvg + 0.5 * (O.ROAD_W[base.s.cls] || 15))), dual: 1 };
+      const e = mkEdge(mid, s); if (!e) return;
+      edges.push(e);
+      // 지운 차도의 끝점에 남은 길(옆길, 가로지르는 길, 이어지는 차도)은 가운데 선 위로 옮겨 잇는다(끝 가까우면 그 끝 교차점에)
+      const ends = new Set(); gone.forEach((x) => { ends.add(x.a); ends.add(x.b); });
+      ends.forEach((n) => {
+        if (n === e.a || n === e.b || !n.e.length) return;
+        const nb = near(n.p, e.pts); if (!nb || nb.d > sep * 0.75) return;
+        const w = pinAt(e, nb.q); if (w === n) return;
+        n.e.slice().forEach((x) => relink(x, n, w)); n.alias = w;
+      });
       nDual++;
     });
     if (nDual) chainAll();
     /* (3-b) 이음새 고치기: 같은 길이 교차로에서 어긋나 끊겨 보이는 것을 바로잡는다
        (가) 가까운 교차점 모으기: 6.5m 안의 두 교차점이 짧은 길로 바로 이어졌거나 같은 이웃 교차점을 두면(어긋난 십자로, 갈라졌다 다시 만나는 짧은 두 갈래) 한 점으로.
             그 결과 겹치는 길(같은 두 점을 잇고 서로 가까움)은 하나만, 제자리로 도는 짧은 길은 버린다
-       (나) 다른 길 바로 앞에서 끊긴 끝(가운데 선으로 합친 양방향 차도의 끝 등): 앞쪽 5m 안의 교차점이나 4m 안의 길에 잇는다(길은 그 자리에서 나눔) */
+       (나) 다른 길 바로 앞에서 끊긴 끝(가운데 선으로 합친 양방향 차도의 끝 등): 앞쪽 5m 안의 교차점이나 4m(넓은 길은 폭의 반, 8m까지) 안의 길에 잇는다(그 길은 나누지 않음) */
     const rabSet = new Set(rabNodes.map((x) => x.C));
-    const CJ = 6.5;
-    const dist2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
     const res0 = (n) => { while (n.alias) n = n.alias; return n; };
     const live = () => { const st = new Set(); edges.forEach((e) => { st.add(e.a); st.add(e.b); }); return [...st]; };
     const nbrs = (n) => new Set(n.e.map((e) => (e.a === n ? e.b : e.a)));
@@ -6909,16 +6961,6 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         const keep = rank(o) >= rank(e) ? o : e;
         kill2(keep === o ? e : o); seen.set(k, keep);
       });
-    };
-    const pinAt = (e, q) => { // 길 e 위의 q 자리(끝 가까우면 그 끝). 그 길은 나누지 않는다(앱은 다른 길 위에 닿은 끝을 T자 교차로로 본다)
-      const L = lenOf(e.pts), lim = (n) => (n.e.length >= 2 ? Math.min(CJ, L / 3) : 2); // 교차점 가까이면 그 교차점에(바로 옆에 T자를 또 만들지 않게)
-      if (dist2(q, e.a.p) < lim(e.a)) return e.a;
-      if (dist2(q, e.b.p) < lim(e.b)) return e.b;
-      let bi = 0, bd = Infinity;
-      for (let i = 0; i + 1 < e.pts.length; i++) { const r = U.distPointSeg(q, e.pts[i], e.pts[i + 1]); if (r.d < bd) { bd = r.d; bi = i; } }
-      const w = { id: nodes.length, p: [q[0], q[1]], e: [] }; nodes.push(w);
-      e.pts.splice(bi + 1, 0, w.p);
-      return w;
     };
     try { // 고치기가 어떤 자료에서 실패해도 받기는 이어 간다(고치기 전 그대로)
     {
@@ -7058,7 +7100,8 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         live().forEach((v) => { if (v === u || v === other || rabSet.has(v)) return; const d = dist2(u.p, v.p); if (((d <= 5 && ahead(v.p, d)) || (d <= 6 && goesOn(v))) && (!best || d < best.d)) best = { d, v }; });
         if (!(best && goesOn(best.v))) edges.forEach((e) => {
           if (e === eu) return;
-          const nb = near(u.p, e.pts); if (!nb || nb.d > 4 || (best && best.d <= nb.d) || !ahead(nb.q, nb.d)) return;
+          const nb = near(u.p, e.pts), reach = Math.max(4, Math.min(8, 0.5 * (e.s.w || O.ROAD_W[e.s.cls] || 8))); // 넓은 길은 차도 가장자리(폭의 반, 8m까지)에서 끊긴 끝도
+          if (!nb || nb.d > reach || (best && best.d <= nb.d) || !ahead(nb.q, nb.d)) return;
           best = { d: nb.d, e, q: nb.q };
         });
         if (!best) return;
