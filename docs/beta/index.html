@@ -6913,28 +6913,65 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
       let i0 = -1, i1 = -1;
       off.forEach((o, i) => { if (o) { if (i0 < 0) i0 = i; i1 = i; } });
       if (i0 < 0 || i1 - i0 < 1) return;
+      const gone = [A].concat(Bs);
+      // 꼬리는 끝 교차로까지 다른 같은 이름 길(다른 짝의 차도, 이미 만든 가운데 선) 옆을 지나지 않을 때만 남긴다(두 짝의 꼬리가 나란히 겹치지 않게)
+      const nm = hk(base.s), foreign = nm ? edges.filter((e) => !gone.includes(e) && hk(e.s) === nm && e.s.cls === base.s.cls) : [];
+      const beside = (i) => { // 다른 길의 가운데(끝점이 아닌 곳)가 옆에 나란히 있음
+        const p = S[i], j = Math.min(i + 1, S.length - 1), k = Math.max(i - 1, 0), ux = S[j][0] - S[k][0], uy = S[j][1] - S[k][1], ul = Math.hypot(ux, uy) || 1;
+        return foreign.some((e) => {
+          const nb = near(p, e.pts); if (!nb || nb.d < 2 || nb.d > sep * 1.25) return false;
+          if (dist2(nb.q, e.pts[0]) < 0.5 || dist2(nb.q, e.pts[e.pts.length - 1]) < 0.5) return false;
+          const dx = nb.q[0] - p[0], dy = nb.q[1] - p[1];
+          return Math.abs((dx * ux + dy * uy) / (nb.d * ul)) <= 0.5 && Math.abs((nb.u[0] * ux + nb.u[1] * uy) / ul) >= 0.8;
+        });
+      };
+      let a0 = 0, a1 = S.length - 1, n0 = 0, n1 = 0; // 꼬리 표본점 가운데 셋(12m) 넘게 다른 길 옆이면 꼬리를 남기지 않음(교차로 끝의 한두 점은 봐줌)
+      for (let i = 0; i < i0; i++) if (beside(i)) n0++;
+      for (let i = S.length - 1; i > i1; i--) if (beside(i)) n1++;
+      if (n0 >= 3) a0 = i0;
+      if (n1 >= 3) a1 = i1;
       const T = 4, mid = [];
       S.forEach((p, i) => {
+        if (i < a0 || i > a1) return;
         let o = off[i];
         if (!o && i > i0 && i < i1) return; // 가운데에서 잠깐 짝이 없는 표본점은 건너뜀
         if (!o) { const m = i < i0 ? Math.min(T, i0) : Math.min(T, S.length - 1 - i1), k = i < i0 ? i0 - i : i - i1, f = Math.max(0, 1 - k / m), oo = off[i < i0 ? i0 : i1]; o = [oo[0] * f, oo[1] * f]; }
         mid.push([p[0] + o[0], p[1] + o[1]]);
       });
       if (mid.length < 2) return;
-      const gone = [A].concat(Bs);
       gone.forEach((x) => { paired.add(x); drop(x); });
       edges = edges.filter((e) => !gone.includes(e));
       const sepAvg = (ia.sep + cand.reduce((t, c) => t + c.ib.sep, 0) / cand.length) / 2;
       const s = { ...others.reduce((acc, o) => better(acc, o.s), base.s), ow: 0, w: Math.max(O.ROAD_W[base.s.cls] || 15, Math.round(sepAvg + 0.5 * (O.ROAD_W[base.s.cls] || 15))), dual: 1 };
       const e = mkEdge(mid, s); if (!e) return;
       edges.push(e);
-      // 지운 차도의 끝점에 남은 길(옆길, 가로지르는 길, 이어지는 차도)은 가운데 선 위로 옮겨 잇는다(끝 가까우면 그 끝 교차점에)
+      // 지운 차도의 끝점에 남은 옆길(가운데 선 쪽으로 가로지르지 않고 바깥으로만 나가는 길)은 가운데 선 위로 옮겨 잇는다(끝 가까우면 그 끝 교차점에).
+      // 두 차도를 가로지르는 길은 그대로(가운데 선과 엇갈려 만남), 아직 짝짓지 않은 차도는 옮기지 않는다(그 짝의 간격이 틀어지지 않게)
+      const pending = (x) => !paired.has(x) && ows.includes(x);
+      const crosses = (x) => { for (let i = 0; i + 1 < x.pts.length; i++) for (let j = 0; j + 1 < e.pts.length; j++) if (U.segIntersect(x.pts[i], x.pts[i + 1], e.pts[j], e.pts[j + 1], 1e-9)) return true; return false; };
       const ends = new Set(); gone.forEach((x) => { ends.add(x.a); ends.add(x.b); });
       ends.forEach((n) => {
-        if (n === e.a || n === e.b || !n.e.length) return;
+        if (n === e.a || n === e.b) return;
+        const mv = n.e.filter((x) => !pending(x));
+        if (!mv.length) return;
+        if (n.e.length === 1 && crosses(mv[0])) { // 가운데 선을 넘어 지운 차도에서 끝나는 토막: 넘은 자리에서 잘라 가운데 선에 닿게
+          const x = mv[0], fromA = x.a === n, P = fromA ? x.pts : x.pts.slice().reverse();
+          for (let i = 0; i + 1 < P.length; i++) {
+            let hit = null;
+            for (let j = 0; j + 1 < e.pts.length; j++) { const r = U.segIntersect(P[i], P[i + 1], e.pts[j], e.pts[j + 1], 1e-9); if (r && (!hit || r.t < hit.t)) hit = r; }
+            if (!hit) continue;
+            const keep = [hit.p].concat(P.slice(i + 1)), w = pinAt(e, hit.p);
+            x.pts = fromA ? keep : keep.reverse();
+            relink(x, n, w); n.alias = w;
+            break;
+          }
+          return;
+        }
+        if (mv.some(crosses)) return;
         const nb = near(n.p, e.pts); if (!nb || nb.d > sep * 0.75) return;
         const w = pinAt(e, nb.q); if (w === n) return;
-        n.e.slice().forEach((x) => relink(x, n, w)); n.alias = w;
+        mv.forEach((x) => relink(x, n, w));
+        if (!n.e.length) n.alias = w;
       });
       nDual++;
     });
