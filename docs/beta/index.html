@@ -7001,7 +7001,7 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
       }
       if (nOv) dedupe();
     }
-    {
+    const consolidate = () => {
       const L = live().filter((n) => !rabSet.has(n)), S = 8, G2 = new Map();
       L.forEach((n) => { const k = Math.floor(n.p[0] / S) + ',' + Math.floor(n.p[1] / S); if (!G2.has(k)) G2.set(k, []); G2.get(k).push(n); });
       const cand = [];
@@ -7023,11 +7023,13 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         dedupe();
       });
       if (nj) dedupe();
-    }
+    };
+    consolidate();
     {
       const pinAt = (e, q) => { // 길 e 위의 q 자리(끝 가까우면 그 끝). 그 길은 나누지 않는다(앱은 다른 길 위에 닿은 끝을 T자 교차로로 본다)
-        if (dist2(q, e.a.p) < 2) return e.a;
-        if (dist2(q, e.b.p) < 2) return e.b;
+        const L = lenOf(e.pts), lim = (n) => (n.e.length >= 2 ? Math.min(CJ, L / 3) : 2); // 교차점 가까이면 그 교차점에(바로 옆에 T자를 또 만들지 않게)
+        if (dist2(q, e.a.p) < lim(e.a)) return e.a;
+        if (dist2(q, e.b.p) < lim(e.b)) return e.b;
         let bi = 0, bd = Infinity;
         for (let i = 0; i + 1 < e.pts.length; i++) { const r = U.distPointSeg(q, e.pts[i], e.pts[i + 1]); if (r.d < bd) { bd = r.d; bi = i; } }
         const w = { id: nodes.length, p: [q[0], q[1]], e: [] }; nodes.push(w);
@@ -7044,7 +7046,7 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         let best = null;
         const goesOn = (v) => v.e.some((e) => e !== eu && (() => { const dv = dirAt(e, v); return dv[0] * out[0] + dv[1] * out[1] >= 0.8; })()); // v에서 같은 쪽으로 이어지는 길이 있음
         live().forEach((v) => { if (v === u || v === other || rabSet.has(v)) return; const d = dist2(u.p, v.p); if (((d <= 5 && ahead(v.p, d)) || (d <= 6 && goesOn(v))) && (!best || d < best.d)) best = { d, v }; });
-        edges.forEach((e) => {
+        if (!(best && goesOn(best.v))) edges.forEach((e) => {
           if (e === eu) return;
           const nb = near(u.p, e.pts); if (!nb || nb.d > 4 || (best && best.d <= nb.d) || !ahead(nb.q, nb.d)) return;
           best = { d: nb.d, e, q: nb.q };
@@ -7052,7 +7054,7 @@ kbd{font:inherit;font-size:11.5px;padding:1px 6px;border-radius:5px;background:v
         if (!best) return;
         absorb(best.v || pinAt(best.e, best.q), u); ns++;
       });
-      if (ns) dedupe();
+      if (ns) { dedupe(); consolidate(); }
     }
     } catch (err) { if (typeof console !== 'undefined') console.warn('도로 이음새 고치기 건너뜀', err); }
     chainAll();
