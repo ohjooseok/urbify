@@ -122,7 +122,8 @@
   const VNAME = { '2d': '평면', '3d': '3D', sec: '단면' };
   /* 화면마다 표현(채색·선 도면)을 따로 고르는 픽토그램 한 쌍(평면·3D 이름표 옆, 단면 머리줄) */
   const vmodeHTML = (k) => `<span class="seg mode vmode" role="group" aria-label="${VNAME[k]} 표현">` +
-    [['color', 'shade', '채색'], ['line', 'wire', '선 도면']].map(([m, ic, n]) => `<button data-vmode="${m}" data-vk="${k}" aria-pressed="${app.modeOf(k) === m}" aria-label="${VNAME[k]} ${n}" data-tip="${VNAME[k]} ${n}">${picto(ic, 22)}</button>`).join('') + '</span>';
+    [['color', 'shade', '채색'], ['line', 'wire', '선 도면']].map(([m, ic, n]) => `<button data-vmode="${m}" data-vk="${k}" aria-pressed="${app.modeOf(k) === m}" aria-label="${VNAME[k]} ${n}" data-tip="${VNAME[k]} ${n}">${picto(ic, 22)}</button>`).join('') +
+    (k === '3d' ? `<button data-act="present" aria-label="발표 화면" data-tip="발표 화면(사실적 재질·눈높이 걷기·VR)">${picto('cube', 22)}</button>` : '') + '</span>';
   /* 대상지 단추의 열쇠: 임의생성은 성격(도시·구도심)까지 */
   const sceneKey = (P) => (P.meta.scene === 'random' ? 'random:' + (P.meta.family || (P.meta.pattern === 'old' ? 'old' : 'new')) : P.meta.scene);
   const palNarrow = () => window.matchMedia('(max-width: 1120px)').matches;
@@ -1430,6 +1431,8 @@
       return cap('화면 배치') + it('viewsw', 'split', '평면과 3D 나란히', { check: st.view === 'split' }) + it('viewsw', '2d', '평면만', { check: st.view === '2d' }) + it('viewsw', '3d', '3D만', { check: st.view === '3d' }) +
         cap('크게 보기 (Esc로 되돌림)') + it('max', '2d', '평면', { check: st.max === '2d' }) + it('max', '3d', '3D', { check: st.max === '3d' }) + it('max', 'sec', '가로 단면', { check: st.max === 'sec' }) +
         sep + cap('표현 (화면마다 이름 옆에서도 바꿈)') + it('setmode', 'color', '모든 화면 채색', { check: st.mode === 'color' }) + it('setmode', 'line', '모든 화면 선 도면', { check: st.mode === 'line' }) + it('layers', null, '레이어…', { ic: 'layers' }) +
+        it('present', null, '발표 화면(사실적 재질·걷기·VR)…', { ic: 'cube' }) +
+        cap('3D 선 도면 선 굵기') + [[0.7, '가늘게'], [1, '보통'], [1.5, '굵게']].map(([w, n]) => it('linew', String(w), n, { check: (st.lineW || 1) === w })).join('') +
         (app.ctxData() ? sep + cap('현황 건물 표현') + UDS.Ctx.MODES.map(([k, n]) => it('ctxmode', k, n, { check: st.ctxMode === k, dis: line })).join('') : '') +
         sep + it('shadow', null, '그림자', { check: !!L.shadows && !line, dis: line }) + it('traffic', null, '3D 오브젝트(사람·차량)', { check: !!st.traffic.on }) + it('sun', null, '음영분석(시각·날짜·조명)…', { ic: 'sun' }) +
         sep + it('fit2d', null, '대상지 전체 보기', { ic: 'fit' }) + (palNarrow() ? '' : it('panel', 'L', '왼쪽 메뉴', { check: !st.hideL }) + it('panel', 'R', '오른쪽 패널', { check: !st.hideR })) +
@@ -1673,6 +1676,7 @@
       const df = $('#dialog .df'); if (df) df.insertAdjacentHTML('afterbegin', '<button class="btn pri" data-act="copydlg">SVG 코드 복사</button>');
     });
   }
+  ui.exportImage = (title, url, name) => { if (canDownload) showImage(title, url, name); else soon(askHost(), 1500).then(() => showImage(title, url, name)); }; // 발표 화면 그림 등
   function exportCanvas(which) {
     let cv = null, name = '';
     const TH = UDS.TH, dk = !!(TH && TH.inkOn());
@@ -1736,7 +1740,8 @@
       '<li><b>크게 보기</b>: 화면 왼쪽 위의 [평면]·[3D] 단추(단면은 단면 머리줄 오른쪽 단추)를 누르면 그 화면만 창 전체로 커집니다. 같은 단추를 다시 누르거나 Esc를 누르면 모든 화면이 돌아옵니다.</li>' +
       '<li><b>패널 접기</b>: 평면 왼쪽 가장자리와 3D 오른쪽 가장자리의 작은 손잡이(또는 [보기] 메뉴)로 왼쪽 메뉴와 오른쪽 패널을 접어 화면을 넓힙니다.</li>' +
       '<li><b>요소로 다가가기(더블클릭)</b>: 평면에서 건물·획지·가구·도로·시설물을 더블클릭하면 옆의 3D가 그 요소로 다가가고, 3D에서 더블클릭하면 평면이 다가갑니다. 한 화면만 보고 있을 때는 그 화면이 다가갑니다.</li>' +
-      '<li><b>채색·선 도면</b>은 왼쪽 메뉴 맨 아래(창이 좁으면 위쪽 막대)의 정육면체 픽토그램 두 개나 [보기] 메뉴로 바꿉니다. 화면 배치(나란히·평면·3D)와 레이어도 같은 자리에 있습니다. 선 도면에서는 평면·3D·단면이 흑백 선으로 바뀌고 그림자는 그리지 않습니다.</li>' +
+      '<li><b>채색·선 도면</b>은 왼쪽 메뉴 맨 아래(창이 좁으면 위쪽 막대)의 정육면체 픽토그램 두 개나 [보기] 메뉴로 바꿉니다. 화면 배치(나란히·평면·3D)와 레이어도 같은 자리에 있습니다. 선 도면에서는 평면·3D·단면이 흑백 선으로 바뀌고 그림자는 그리지 않습니다. 3D 선 도면의 선은 굵기 위계(땅에 닿는 선 > 건물 모서리·지붕 > 바닥·도로 > 노면 표시·시설물)를 따르고, [보기] 메뉴에서 가늘게·보통·굵게를 고릅니다.</li>' +
+      '<li><b>발표 화면</b>은 3D 이름표 옆 정육면체 단추나 [보기] 메뉴에서 엽니다. 같은 모형을 사실적 재질(유리에 하늘이 비침), 주변광 가림, 부드러운 그림자로 그리고, 눈높이(1.6m)로 걷거나(W A S D·화살표, Shift 빠르게, 끌어서 둘러보기) VR 기기의 브라우저에서 [VR로 보기]로 둘러봅니다. [그림 저장]은 지금 화면을 두 배 해상도로 저장합니다. 처음 열 때 three.js 묶음(약 630KB)을 따로 불러옵니다.</li>' +
       '<li><b>내보내기</b>는 프로젝트 메뉴에서 합니다. 평면도와 가로 단면은 벡터(SVG)로 나가며 지금 표현(채색·선 도면)을 따릅니다. 인쇄 치수는 평면 1:1000, 단면 1:100이며 축척 막대·방위표가 함께 들어갑니다. 건물·도로(차도·보도·노면 표시·연석)·수목·가로등·시설물·이름 등이 레이어로 나뉘어 Inkscape·Illustrator에서 따로 고를 수 있고, 3D 모델의 OBJ는 갈래마다 그룹(라이노에서는 레이어)으로 나뉩니다.</li>' +
       '<li><b>화면 축척</b>: 평면 오른쪽 아래의 1:N을 눌러 숫자를 넣고 Enter를 누르면 그 축척으로 맞춥니다(모니터 96dpi 기준). 3D의 방위표(N·E·S·W)를 누르면 북쪽이 위로 오게 돌립니다.</li>' +
       '<li><b>3D 오브젝트</b>: 왼쪽 메뉴 [3D 오브젝트]의 스위치로 켜고, 보행자·차량·개인형 이동장치(자전거도로의 자전거·킥보드)의 밀도를 막대로 조절합니다.</li>' +
@@ -1938,6 +1943,8 @@
     settool(a) { app.setTool(a, a === 'road' ? app.state.roadPreset : a === 'build' ? app.state.buildUse : undefined); },
     viewsw(a) { ui.setView(a); },
     setmode(a) { ui.setMode(a); },
+    present() { ui.closePop(); if (UDS.Present) UDS.Present.open(); },
+    linew(a) { const w = +a || 1; app.state.lineW = w; if (app.modeOf('3d') !== 'line') ui.setMode('line', '3d'); else app.invalidate(2); ui.toast(`3D 선 도면 선 굵기: ${w < 1 ? '가늘게' : w > 1 ? '굵게' : '보통'}`); },
     delsel() { if (app.selList().length) app.deleteSelected(); },
     deselect() { app.select(null); },
     keys() { keysDlg(); },

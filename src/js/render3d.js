@@ -184,10 +184,13 @@
     for (let i = 0; i + 1 < pts.length; i++) this.flat([R[i], R[i + 1], L[i + 1], L[i]], y, col, k, kind);
   };
 
-  function LineSet() { this.P = []; this.Cl = []; }
-  LineSet.prototype.seg = function (a, b, col) { this.P.push(a[0], a[1], a[2], b[0], b[1], b[2]); const c = col || [0, 0, 0]; this.Cl.push(c[0], c[1], c[2], c[0], c[1], c[2]); };
-  LineSet.prototype.poly2 = function (pts, y, close, col) { for (let i = 0; i + 1 < pts.length; i++) this.seg(W3(pts[i], y), W3(pts[i + 1], y), col); if (close && pts.length > 2) this.seg(W3(pts[pts.length - 1], y), W3(pts[0], y), col); };
-  LineSet.prototype.boxEdges = function (P2, y0, y1) { this.poly2(P2, y0, true); this.poly2(P2, y1, true); P2.forEach((p) => this.seg(W3(p, y0), W3(p, y1))); };
+  /* 선 굵기 위계(선 도면): 0 가는 선(노면 표시·시설물), 1 얇은 선(바닥·필지·도로), 2 보통 선(건물 모서리·지붕), 3 굵은 선(건물이 땅에 닿는 선) */
+  const LW = { hair: 0, light: 1, mid: 2, heavy: 3 };
+  const LINE_PX = [0.55, 0.9, 1.6, 2.6]; // 화면 px(보통 굵기 기준)
+  function LineSet() { this.P = []; this.Cl = []; this.Wt = []; this.wt = LW.light; }
+  LineSet.prototype.seg = function (a, b, col, w) { this.P.push(a[0], a[1], a[2], b[0], b[1], b[2]); const c = col || [0, 0, 0]; this.Cl.push(c[0], c[1], c[2], c[0], c[1], c[2]); this.Wt.push(w === undefined ? this.wt : w); };
+  LineSet.prototype.poly2 = function (pts, y, close, col, w) { for (let i = 0; i + 1 < pts.length; i++) this.seg(W3(pts[i], y), W3(pts[i + 1], y), col, w); if (close && pts.length > 2) this.seg(W3(pts[pts.length - 1], y), W3(pts[0], y), col, w); };
+  LineSet.prototype.boxEdges = function (P2, y0, y1, w) { this.poly2(P2, y0, true, undefined, w); this.poly2(P2, y1, true, undefined, w); P2.forEach((p) => this.seg(W3(p, y0), W3(p, y1), undefined, w)); };
 
   /* ---------- 셰이더 ---------- */
   const VS = `#version 300 es
@@ -197,15 +200,9 @@ uniform mat4 u_vp; uniform mat4 u_lvp;
 out vec3 v_pos; out vec3 v_nrm; out vec3 v_col; out vec2 v_uv; flat out vec4 v_st1; flat out vec4 v_st2; out vec4 v_lpos; flat out vec3 v_pick; // 면마다 같은 값은 보간하지 않는다(flat)
 void main(){ v_pos=a_pos; v_nrm=a_nrm; v_col=a_col; v_uv=a_uv; v_st1=a_st1; v_st2=a_st2; v_pick=a_pick; v_lpos=u_lvp*vec4(a_pos,1.0); gl_Position=u_vp*vec4(a_pos,1.0); }`;
 
-  const FS = `#version 300 es
-precision highp float; precision highp sampler2DShadow; precision mediump sampler2DArray;
-in vec3 v_pos; in vec3 v_nrm; in vec3 v_col; in vec2 v_uv; flat in vec4 v_st1; flat in vec4 v_st2; in vec4 v_lpos; flat in vec3 v_pick;
-uniform vec3 u_sun; uniform float u_line; uniform float u_shadowOn; uniform sampler2DShadow u_shadow; uniform float u_alpha; uniform vec3 u_eye; uniform float u_pickMode;
-uniform sampler2DArray u_cmTex; uniform vec4 u_cm[12]; uniform vec3 u_cmA[12]; // 이미지 재료: 층마다 (무늬 가로·세로 m, 거울 반복, 그림 있음), 평균색
-uniform vec3 u_sels[48]; uniform int u_nsel; uniform float u_fade; uniform vec3 u_fog; uniform vec4 u_center;
-uniform vec3 u_sunCol; uniform vec3 u_ambSky; uniform vec3 u_ambGnd; uniform float u_glow; uniform float u_lit; uniform sampler2D u_lamp; uniform vec4 u_lampRect;
-out vec4 o;
-float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+  /* 입면(창·1층·간판·재료 무늬) 조각: 3D 화면과 발표 화면(present.js, three.js)이 함께 쓴다.
+     쓰는 값: v_uv(벽 위 m), v_st1·v_st2(층고·1층·칸·창 비율, 부호), v_col(벽색), v_pick, u_lit, u_cm·u_cmA·u_cmTex(이미지 재료) */
+  const FACADE_GLSL = `float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float rectM(vec2 p, vec4 r){ vec2 w=max(fwidth(p),vec2(1e-4)); vec2 a=smoothstep(r.xy-w,r.xy+w,p)*(1.0-smoothstep(r.zw-w,r.zw+w,p)); return a.x*a.y; }
 float rectE(vec2 p, vec4 r){ vec2 w=max(fwidth(p),vec2(1e-4))*1.3; float i=rectM(p,r); float j=rectM(p,r+vec4(w,-w)); return clamp(i-j,0.0,1.0); }
 float hline(float y, float c){ float w=max(fwidth(y),1e-4); return 1.0-smoothstep(0.0, w*1.2, abs(y-c)); }
@@ -301,7 +298,16 @@ vec3 facade(out float glass, out float ln, out vec3 em){
     ln=max(ln,hline(fy,0.0)*0.35);
   }
   return c;
-}
+}`;
+  const FS = `#version 300 es
+precision highp float; precision highp sampler2DShadow; precision mediump sampler2DArray;
+in vec3 v_pos; in vec3 v_nrm; in vec3 v_col; in vec2 v_uv; flat in vec4 v_st1; flat in vec4 v_st2; in vec4 v_lpos; flat in vec3 v_pick;
+uniform vec3 u_sun; uniform float u_line; uniform float u_shadowOn; uniform sampler2DShadow u_shadow; uniform float u_alpha; uniform vec3 u_eye; uniform float u_pickMode;
+uniform sampler2DArray u_cmTex; uniform vec4 u_cm[12]; uniform vec3 u_cmA[12]; // 이미지 재료: 층마다 (무늬 가로·세로 m, 거울 반복, 그림 있음), 평균색
+uniform vec3 u_sels[48]; uniform int u_nsel; uniform float u_fade; uniform vec3 u_fog; uniform vec4 u_center;
+uniform vec3 u_sunCol; uniform vec3 u_ambSky; uniform vec3 u_ambGnd; uniform float u_glow; uniform float u_lit; uniform sampler2D u_lamp; uniform vec4 u_lampRect;
+out vec4 o;
+${FACADE_GLSL}
 /* 수관의 불투명도: 기본값(u_alpha)에서, 눈에 가까운 수관일수록 더 옅게 해 시야를 가리지 않게 한다 */
 float leafA(){ if(u_alpha>0.999) return 1.0; return u_alpha*mix(0.72,1.0,smoothstep(6.0,30.0,distance(u_eye,v_pos))); }
 void main(){
@@ -352,6 +358,28 @@ void main(){
 layout(location=0) in vec3 a_pos; layout(location=2) in vec3 a_col; uniform mat4 u_vp; out vec3 v_col;
 void main(){ v_col=a_col; gl_Position=u_vp*vec4(a_pos,1.0); }`;
   const LFS = `#version 300 es
+precision highp float; in vec3 v_col; uniform float u_black; out vec4 o; void main(){ o=vec4(u_black>0.5?vec3(0.0):v_col,1.0); }`;
+  /* 굵은 선: 선분마다 화면에서 두께를 가진 사각형 하나(인스턴스). 끝은 반 두께만큼 늘려 꺾인 곳이 비지 않게 */
+  const TVS = `#version 300 es
+layout(location=0) in vec3 a_p0; layout(location=1) in vec3 a_p1; layout(location=2) in vec3 a_col; layout(location=3) in float a_w;
+uniform mat4 u_vp; uniform vec2 u_vs; uniform float u_wpx[4]; out vec3 v_col;
+const ivec2 Q[6] = ivec2[6](ivec2(0,-1), ivec2(0,1), ivec2(1,-1), ivec2(1,-1), ivec2(0,1), ivec2(1,1));
+void main(){
+  v_col=a_col;
+  vec4 c0=u_vp*vec4(a_p0,1.0), c1=u_vp*vec4(a_p1,1.0);
+  const float E=1e-3;
+  if (c0.w<E && c1.w<E) { gl_Position=vec4(2.0,2.0,2.0,1.0); return; }
+  if (c0.w<E) c0=mix(c0,c1,(E-c0.w)/(c1.w-c0.w)); else if (c1.w<E) c1=mix(c1,c0,(E-c1.w)/(c0.w-c1.w));
+  vec2 h=0.5*u_vs, s0=c0.xy/c0.w*h, s1=c1.xy/c1.w*h, d=s1-s0;
+  float L=length(d); vec2 t=L>1e-4?d/L:vec2(1.0,0.0), n=vec2(-t.y,t.x);
+  float hw=0.5*u_wpx[int(a_w+0.5)];
+  ivec2 q=Q[gl_VertexID];
+  vec4 c=q.x==0?c0:c1;
+  vec2 off=n*float(q.y)*hw+t*(q.x==0?-hw:hw);
+  c.xy+=off/h*c.w;
+  gl_Position=c;
+}`;
+  const TFS = `#version 300 es
 precision highp float; in vec3 v_col; uniform float u_black; out vec4 o; void main(){ o=vec4(u_black>0.5?vec3(0.0):v_col,1.0); }`;
   const DVS = `#version 300 es
 layout(location=0) in vec3 a_pos; uniform mat4 u_lvp; void main(){ gl_Position=u_lvp*vec4(a_pos,1.0); }`;
@@ -498,6 +526,20 @@ void main(){
     gl.bindVertexArray(null);
     return { vao, bufs, count: L.P.length / 3 };
   }
+  function uploadThick(gl, L) { // 선분 하나 = 인스턴스 하나(끝점 둘, 색, 굵기 등급)
+    const n = L.P.length / 6, A = new Float32Array(n * 10);
+    for (let i = 0; i < n; i++) {
+      const o = i * 10;
+      for (let k = 0; k < 6; k++) A[o + k] = L.P[i * 6 + k];
+      A[o + 6] = L.Cl[i * 6]; A[o + 7] = L.Cl[i * 6 + 1]; A[o + 8] = L.Cl[i * 6 + 2];
+      A[o + 9] = L.Wt ? L.Wt[i] : LW.light;
+    }
+    const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, A, gl.STATIC_DRAW);
+    [[0, 3, 0], [1, 3, 12], [2, 3, 24], [3, 1, 36]].forEach(([loc, sz, off]) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, sz, gl.FLOAT, false, 40, off); gl.vertexAttribDivisor(loc, 1); });
+    gl.bindVertexArray(null);
+    return { vao, bufs: [buf], count: n };
+  }
   function uploadBB(gl, b) {
     const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
     const bufs = [];
@@ -582,6 +624,7 @@ void main(){
     try {
       this.prog = compile(gl, VS, FS);
       this.lprog = compile(gl, LVS, LFS);
+      this.tprog = compile(gl, TVS, TFS);
       this.dprog = compile(gl, DVS, DFS);
       try { this.pprog = compile(gl, PVS, PFS); } catch (e) { this.pprog = null; } // 없으면 하천은 지면에 그대로
     } catch (e) { console.error(e); this.err = String(e); return; }
@@ -837,7 +880,7 @@ void main(){
     this.meshes.leaf = upload(gl, S.leaf);
     this.meshes.treeSh = upload(gl, S.treeSh);
     this.meshes.bb = uploadBB(gl, S.bb);
-    this.meshes.edges = uploadLines(gl, S.edges);
+    this.meshes.edges = uploadThick(gl, S.edges); // 선 도면의 모서리선(굵기 위계)
     this.meshes.wires = uploadLines(gl, S.wires);
     this.meshVer = (this.meshVer || 0) + 1;
     this.ovKey = null; // 덧그림(분석 지도·태양 궤적·단면선)도 다시
@@ -865,7 +908,7 @@ void main(){
     const lampPts = [];
     const edges = new LineSet(), wires = new LineSet();
     const layers = o.layers || app.state.layers;
-    const line = !o.exp && app.modeOf('3d') === 'line';
+    const line = !o.exp && !o.present && app.modeOf('3d') === 'line'; // o.present: 발표 화면(늘 채색 모형)
 
     // 바닥(그리는 순서가 곧 위아래 순서)
     const ext = 6000;
@@ -960,11 +1003,11 @@ void main(){
           const L = U.polylineLength(m.pts);
           for (let s = 0; s < L; s += 8) { const p0 = U.pointAlong(m.pts, s).p, p1 = U.pointAlong(m.pts, Math.min(L, s + 3)).p; ground.strip([p0, p1], 0.15, 0.18, col); }
         } else ground.strip(m.pts, 0.15, 0.18, col);
-        edges.poly2(m.pts, 0.34, false);
+        edges.poly2(m.pts, 0.34, false, undefined, LW.hair);
       });
-      g.cross.forEach((c) => c.stripes.forEach((q) => { ground.flat(q, 0.18, '#f2f2ee'); edges.poly2(q, 0.34, true); }));
+      g.cross.forEach((c) => c.stripes.forEach((q) => { ground.flat(q, 0.18, '#f2f2ee'); edges.poly2(q, 0.34, true, undefined, LW.hair); }));
       g.stops.forEach((sl) => ground.strip(sl, 0.4, 0.18, '#f2f2ee'));
-      g.stalls.forEach((sl) => { ground.strip(sl, 0.12, 0.18, '#f2f2ee'); edges.poly2(sl, 0.34, false); });
+      g.stalls.forEach((sl) => { ground.strip(sl, 0.12, 0.18, '#f2f2ee'); edges.poly2(sl, 0.34, false, undefined, LW.hair); });
       g.yields.forEach((yl) => { const L = U.dist(yl[0], yl[1]), d = U.norm(U.sub(yl[1], yl[0])); for (let t = 0; t < L - 0.1; t += 1.05) ground.strip([U.add(yl[0], U.mul(d, t)), U.add(yl[0], U.mul(d, Math.min(L, t + 0.6)))], 0.3, 0.18, '#f2f2ee'); });
       g.splits.forEach((q) => { solid.prism(q, 0.12, 0.3, C.SEG.median.color, pick({ type: 'road', id: a.road.id })); edges.poly2(q, 0.3, true); });
     });
@@ -1004,6 +1047,7 @@ void main(){
 
     // 건물
     solid.tag('building');
+    edges.wt = LW.mid; // 건물 모서리·지붕선은 보통 굵기(땅에 닿는 선만 굵게)
     if (layers.buildings) D.buildings.forEach((b) => this._building(b, solid, edges, pick({ type: 'building', id: b.lotId })));
     ground.tag('parcel'); solid.tag('ctx');
     // 실제 지역: 지목별 바닥(도로·하천·공원 필지)과 현황 건물 매스(지운 것·새 계획으로 철거되는 것은 세우지 않음)
@@ -1063,12 +1107,12 @@ void main(){
         solid.box((l.x + hx) / 2, (l.y + hy) / 2, 1.5, 0.12, 8.4, 0.12, ang, '#55595e');
         solid.box(hx, hy, 0.7, 0.3, 8.25, 0.2, ang, '#f4ecd2', null, 7);
         lampPts.push([hx, hy, 15]);
-        edges.seg(W3([l.x, l.y], 0), W3([l.x, l.y], 8.5));
+        edges.seg(W3([l.x, l.y], 0), W3([l.x, l.y], 8.5), undefined, LW.hair);
       });
       D.poles.forEach((p) => {
         solid.cyl(p.x, p.y, 0.18, 0, 10.5, '#9a978f', 6);
         solid.box(p.x, p.y, 1.8, 0.12, 9.3, 0.12, 0, '#7d7a72');
-        edges.seg(W3([p.x, p.y], 0), W3([p.x, p.y], 10.5));
+        edges.seg(W3([p.x, p.y], 0), W3([p.x, p.y], 10.5), undefined, LW.hair);
       });
       D.wires.forEach((w) => {
         [8.9, 9.4, 9.9].forEach((h, k) => {
@@ -1083,6 +1127,7 @@ void main(){
           }
         });
       });
+      edges.wt = LW.hair; // 시설물은 가는 선
       D.furniture.forEach((f) => { this._furniture(f, solid, ground, edges, f.auto ? [0, 0, 0] : pick({ type: 'object', id: f.id })); if (f.type === 'light') lampPts.push([f.x, f.y, 8]); else if (f.type === 'smartpole') lampPts.push([f.x, f.y, 13]); else if (f.type === 'busstop') lampPts.push([f.x, f.y, 5]); });
     }
     // 지하시설
@@ -1257,7 +1302,7 @@ void main(){
         const d = U.norm(U.sub(c, a));
         const P2 = [U.add(a, U.mul(d, 0.3)), U.sub(c, U.mul(d, 0.3)), U.add(U.sub(c, U.mul(d, 0.3)), U.mul(n2, 1.4)), U.add(U.add(a, U.mul(d, 0.3)), U.mul(n2, 1.4))];
         solid.prism(P2, b.groundH - 0.75, b.groundH - 0.6, '#3d4247', pk);
-        edges.poly2(P2, b.groundH - 0.6, true);
+        edges.poly2(P2, b.groundH - 0.6, true, undefined, LW.light);
       }
       if (isFront && st.sign === 'cluttered' && L > 3) {
         const d = U.norm(U.sub(c, a));
@@ -1265,11 +1310,11 @@ void main(){
           const p = U.add(U.add(a, U.mul(d, s)), U.mul(n2, 0.55));
           const sc = [[0.85, 0.2, 0.15], [0.98, 0.78, 0.15], [0.15, 0.45, 0.85], [0.2, 0.62, 0.3], [0.92, 0.45, 0.1]][Math.floor(rnd() * 5)];
           const P2 = solid.box(p[0], p[1], 0.12, 0.9, b.groundH + 0.3, Math.min(2.6, H - b.groundH - 0.3), Math.atan2(d[1], d[0]), sc, pk);
-          edges.boxEdges(P2, b.groundH + 0.3, b.groundH + 0.3 + Math.min(2.6, H - b.groundH - 0.3));
+          edges.boxEdges(P2, b.groundH + 0.3, b.groundH + 0.3 + Math.min(2.6, H - b.groundH - 0.3), LW.hair);
         }
       }
     }
-    edges.poly2(fp, y0, true);
+    edges.poly2(fp, y0, true, undefined, LW.heavy); // 땅에 닿는 선
     edges.poly2(fp, Hp, true);
     const roofCol = st.roof === 'green' ? '#A9D5C2' : U.mix(st.wallColor || '#dddddd', '#efeff2', 0.62);
     if (par) this._roofKit(b, fp, H, Hp, col, solid, edges, pk);
@@ -1353,7 +1398,7 @@ void main(){
         const P2 = rect(p[0], p[1], w, d);
         if (!fits(P2, 1.2)) continue;
         solid.prism(P2, H, H + h, colr, pk);
-        edges.boxEdges(P2, H, H + h);
+        edges.boxEdges(P2, H, H + h, LW.light);
         placed.push({ c: p, r: Math.hypot(w, d) / 2 });
         return P2;
       }
@@ -1404,7 +1449,7 @@ void main(){
           const z = ring[(i - 1 + n) % n], d1 = U.norm(U.sub(a, z)), d2 = U.norm(U.sub(c, a));
           if (Math.abs(U.cross(d1, d2)) > 0.34 || U.dot(d1, d2) < 0) edges.seg(W3(a, y0), W3(a, H));
         }
-        edges.poly2(ring, H, true); edges.poly2(ring, y0, true);
+        edges.poly2(ring, H, true); edges.poly2(ring, y0, true, undefined, LW.heavy);
       });
       this._flatH(solid, this._ctxTri('b:' + b.id, k, pt), H, roof, pk, 2);
     });
@@ -1429,7 +1474,7 @@ void main(){
     if (st.canopy && L > 2 && f.floors > 1) {
       const P2 = [U.add(a, U.mul(d, 0.3)), U.sub(c, U.mul(d, 0.3)), U.add(U.sub(c, U.mul(d, 0.3)), U.mul(n2, 1.3)), U.add(U.add(a, U.mul(d, 0.3)), U.mul(n2, 1.3))];
       solid.prism(P2, f.groundH - 0.75, f.groundH - 0.6, '#3d4247', pk);
-      edges.poly2(P2, f.groundH - 0.6, true);
+      edges.poly2(P2, f.groundH - 0.6, true, undefined, LW.light);
     }
     const sh = Math.min(2.6, top - f.groundH - 0.3);
     if (st.sign === 'cluttered' && L > 3 && sh > 0.8) { // 돌출 간판
@@ -1437,7 +1482,7 @@ void main(){
         const p = U.add(U.add(a, U.mul(d, s)), U.mul(n2, 0.55));
         const sc = [[0.85, 0.2, 0.15], [0.98, 0.78, 0.15], [0.15, 0.45, 0.85], [0.2, 0.62, 0.3], [0.92, 0.45, 0.1]][Math.floor(rnd() * 5)];
         const P2 = solid.box(p[0], p[1], 0.12, 0.9, f.groundH + 0.3, sh, Math.atan2(d[1], d[0]), sc, pk);
-        edges.boxEdges(P2, f.groundH + 0.3, f.groundH + 0.3 + sh);
+        edges.boxEdges(P2, f.groundH + 0.3, f.groundH + 0.3 + sh, LW.hair);
       }
     }
   };
@@ -1454,7 +1499,7 @@ void main(){
           const z = ring[(i - 1 + n) % n], d1 = U.norm(U.sub(a, z)), d2 = U.norm(U.sub(c, a));
           if (Math.abs(U.cross(d1, d2)) > 0.34 || U.dot(d1, d2) < 0) edges.seg(W3(a, y0), W3(a, Hp));
         }
-        edges.poly2(ring, y0, true); edges.poly2(ring, Hp, true);
+        edges.poly2(ring, y0, true, undefined, LW.heavy); edges.poly2(ring, Hp, true);
       });
       this._flatH(solid, this._ctxTri('b:' + b.id, pi, pt), top, roofCol, pk, 2);
       if (!pt.h.length && Hp > top + 0.01) this._roofKit({ id: b.id + '#' + pi, st: { roof: 'flat' }, floors: f.floors }, pt.o, top, Hp, col, solid, edges, pk);
@@ -1465,7 +1510,7 @@ void main(){
     const P = f.pitch, R = P.R, i0 = P.i0, top = f.top, rise = P.rise, y0 = 0.03;
     const v = (i) => R[((i % 4) + 4) % 4];
     for (let i = 0; i < 4; i++) { this._ctxWall(f, v(i), v(i + 1), top, top, P.front.has(i), solid, edges, pk, col, rnd); edges.seg(W3(v(i), y0), W3(v(i), top)); }
-    edges.poly2(R, y0, true); edges.poly2(R, top, true);
+    edges.poly2(R, y0, true, undefined, LW.heavy); edges.poly2(R, top, true);
     const R1 = U.mid(v(i0), v(i0 + 1)), R2 = U.mid(v(i0 + 2), v(i0 + 3)), Lr = U.dist(R1, R2), u = U.norm(U.sub(R2, R1)), w = U.perpL(u), Cc = U.mid(R1, R2);
     const ov = 0.45, slope = rise / Math.max(0.5, P.halfD), yE = top - ov * slope, yR = top + rise;
     const E = (i) => { const p = v(i), q = U.sub(p, Cc); return U.add(p, U.add(U.mul(u, Math.sign(U.dot(q, u)) * ov), U.mul(w, Math.sign(U.dot(q, w)) * ov))); };
@@ -1619,7 +1664,8 @@ void main(){
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, shadowTex);
     gl.uniform1i(pr.u.u_shadow, 0);
     const drawM = (m) => { if (!m.count) return; gl.bindVertexArray(m.vao); gl.drawElements(gl.TRIANGLES, m.count, gl.UNSIGNED_INT, 0); };
-    if (line) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.0, 1.0); }
+    const lineK = (app.state.lineW || 1) * (this.cv.width / Math.max(1, this.cssW || this.cv.width)); // 선 굵기 단계 × 화면 배율
+    if (line) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.0 + 0.5 * LINE_PX[LW.heavy] * lineK, 2.0); } // 면을 가장 굵은 선의 반 두께만큼 뒤로(선이 면에 묻히지 않게)
     gl.uniform1f(pr.u.u_alpha, 1);
     gl.depthFunc(gl.ALWAYS); gl.depthMask(true);
     gl.uniform1f(pr.u.u_fade, under && !line ? 0.5 : 0);
@@ -1677,7 +1723,17 @@ void main(){
     gl.depthFunc(gl.LEQUAL);
     gl.uniform1f(lp.u.u_black, line ? 1 : 0);
     if (this.meshes.wires.count) { gl.bindVertexArray(this.meshes.wires.vao); gl.drawArrays(gl.LINES, 0, this.meshes.wires.count); }
-    if (line && this.meshes.edges.count) { gl.uniform1f(lp.u.u_black, 1); gl.bindVertexArray(this.meshes.edges.vao); gl.drawArrays(gl.LINES, 0, this.meshes.edges.count); }
+    if (line && this.meshes.edges.count) { // 선 도면: 굵기 위계가 있는 선
+      const tp = this.tprog;
+      gl.useProgram(tp.p);
+      gl.uniformMatrix4fv(tp.u.u_vp, false, VP);
+      gl.uniform2f(tp.u.u_vs, this.cv.width, this.cv.height);
+      gl.uniform1fv(tp.u.u_wpx, LINE_PX.map((w) => Math.max(0.8, w * lineK)));
+      gl.uniform1f(tp.u.u_black, 1);
+      gl.bindVertexArray(this.meshes.edges.vao);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.meshes.edges.count);
+      gl.useProgram(lp.p);
+    }
     if (this.meshes.ovL && this.meshes.ovL.count) { gl.uniform1f(lp.u.u_black, 0); gl.bindVertexArray(this.meshes.ovL.vao); gl.drawArrays(gl.LINES, 0, this.meshes.ovL.count); }
     this._secLabels(VP);
     // 수관: 반투명. 먼저 깊이만 써서 맨 앞 면을 정한 뒤, 그 면만 뒤 장면 위에 섞는다(나무를 거리순으로 정렬하지 않아도 됨)
@@ -1835,5 +1891,6 @@ void main(){
     return this.pickTable[id] || null;
   };
 
+  Render3D.FACADE_GLSL = FACADE_GLSL;
   UDS.Render3D = Render3D;
 })(typeof window !== 'undefined' ? window : globalThis);

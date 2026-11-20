@@ -11,7 +11,7 @@
     P: null, D: null, hist: [], hi: -1,
     ctx: null, // 실제 지역의 현황 자료 { id, lat, lon, W, H, date, src, bld: [...], par: [...] }. 계획의 P.ctx.id와 같을 때만 쓴다
     state: {
-      mode: 'color', modes: { '2d': 'color', '3d': 'color', sec: 'color' }, tool: 'select', placeType: null, roadPreset: 'jung3', treeSpecies: 'ginkgo', buildUse: 'res',
+      mode: 'color', modes: { '2d': 'color', '3d': 'color', sec: 'color' }, lineW: 1, tool: 'select', placeType: null, roadPreset: 'jung3', treeSpecies: 'ginkgo', buildUse: 'res',
       // 건물 놓기: scope 'lot'(획지 하나) · 'block'(가구 전체). floors 0·depth null이면 고른 용도의 기본값, len 0이면 획지 폭에 맞춤
       buildOpt: { scope: 'lot', floors: 0, len: 0, depth: null },
       fillT: {}, // 가구 채우기 기준(용도별 건폐율·용적률·최고 층수)
